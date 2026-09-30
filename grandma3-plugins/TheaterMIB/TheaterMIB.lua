@@ -5,15 +5,15 @@
 -- Szene benutzt werden. Für jeden solchen Szenenwechsel werden die Geräte
 -- selektiert (lokalisiert) und es wird gefragt, in welcher Zeit sie im Dunkeln
 -- auf Position / Shaper / Beam / Color der nächsten Szene fahren sollen.
--- Die Zeit wird als MIB (Move In Black) Fade/Delay in Part 0 der nächsten Cue
--- eingetragen – das eigentliche Vorpositionieren macht dann die Konsole.
+-- Die Werte der nächsten Szene (ohne Dimmer) werden mit dieser Zeit als
+-- individuelles Fade/Delay in die Quell-Cue gespeichert. So sind die Mover
+-- fertig positioniert, egal wann GO für die nächste Szene gedrückt wird.
 
 local pluginName = select(1, ...)
 
 local DEFAULT_GROUP = "MH"      -- Gruppe mit allen Movingheads
 local DEFAULT_FADE  = "3"       -- Sekunden
-local DEFAULT_DELAY = "0"       -- Sekunden nach "Dimmer zu"
-local MIB_MODES     = { "Early", "Late" }
+local DEFAULT_DELAY = "0"       -- Sekunden, bevor die Mover losfahren
 
 local function log(fmt, ...) Printf("[" .. pluginName .. "] " .. fmt, ...) end
 local function err(fmt, ...) ErrPrintf("[" .. pluginName .. "] " .. fmt, ...) end
@@ -86,26 +86,31 @@ local function readDimmers(group, cue)
   return result
 end
 
--- Findet alle Wechsel Cue K -> Cue K+1 mit Geräten, die von 0 auf >0 gehen
+-- Findet alle Wechsel Cue K -> Cue K+1 mit Geräten, die von 0 auf >0 gehen.
+-- fadeOut: Geräte, die in Cue K selbst erst ausgeblendet werden (brauchen Delay)
 local function analyse(group, cues, startIndex)
   local transitions = {}
   local progress = StartProgress(pluginName .. ": Cues lesen")
   SetProgressRange(progress, startIndex, #cues)
 
   Cmd("Blind On")
+  local before = startIndex > 1 and readDimmers(group, cues[startIndex - 1].handle) or {}
   local prev = readDimmers(group, cues[startIndex].handle)
   for i = startIndex + 1, #cues do
     SetProgress(progress, i)
     local cur = readDimmers(group, cues[i].handle)
-    local fixtures = {}
+    local fixtures, fadeOut = {}, {}
     for addr, value in pairs(cur) do
-      if value > 0 and (prev[addr] or 0) <= 0 then fixtures[#fixtures + 1] = addr end
+      if value > 0 and (prev[addr] or 0) <= 0 then
+        fixtures[#fixtures + 1] = addr
+        if (before[addr] or 0) > 0 then fadeOut[addr] = true end
+      end
     end
     if #fixtures > 0 then
       table.sort(fixtures)
-      transitions[#transitions + 1] = { from = cues[i - 1], to = cues[i], fixtures = fixtures }
+      transitions[#transitions + 1] = { from = cues[i - 1], to = cues[i], fixtures = fixtures, fadeOut = fadeOut }
     end
-    prev = cur
+    before, prev = prev, cur
   end
   Cmd("ClearAll")
   Cmd("Blind Off")
@@ -113,34 +118,55 @@ local function analyse(group, cues, startIndex)
   return transitions
 end
 
--- Setzt eine Eigenschaft der Cue-Part; erst per Lua, sonst per Kommandozeile
-local function setPartProperty(part, prop, value, undo)
-  local ok = pcall(function() part:Set(prop, value) end)
-  if ok then
-    local got = part:Get(prop, Enums.Roles.Edit)
-    if got ~= nil then return true end
+-- Ist im Programmer noch ein Dimmerwert aktiv?
+local function dimmerInProgrammer()
+  local dimAttr = GetAttributeIndex("Dimmer")
+  local sf = SelectionFirst()
+  while sf do
+    local ui = dimAttr and GetUIChannelIndex(sf, dimAttr)
+    local data = ui and GetProgPhaser(ui, false)
+    if data then
+      if data.mask_active_value ~= nil then
+        if data.mask_active_value ~= 0 then return true end
+      elseif (data[1] and data[1].absolute) or data.abs_preset then
+        return true
+      end
+    end
+    sf = SelectionNext(sf)
   end
-  local r = Cmd(string.format('Set %s Property "%s" "%s"', ToAddr(part), prop, value), undo)
-  return r == "Ok"
+  return false
 end
 
-local function applyMIB(t, settings, undo)
-  local parts = t.to.handle:Children()
-  local part = parts and parts[1] -- Part 0
-  if not part then
-    err("%s hat keine Part 0", cueLabel(t.to.handle))
-    return false
+-- Speichert Position/Shaper/Beam/Color der Ziel-Cue (ohne Dimmer) mit
+-- individueller Zeit in die Quell-Cue.
+local function storeIntoSourceCue(t, settings, undo)
+  local function run(cmd)
+    local r = Cmd(cmd, undo)
+    if r ~= "Ok" then err("'%s' -> %s", cmd, tostring(r)) end
+    return r == "Ok"
   end
-  local ok = true
-  ok = setPartProperty(part, "MIB", settings.mode, undo) and ok
-  ok = setPartProperty(part, "MIBFade", settings.fade, undo) and ok
-  ok = setPartProperty(part, "MIBDelay", settings.delay, undo) and ok
+
+  Cmd("Blind On", undo)
+  Cmd("ClearAll", undo)
+  local ok = run(table.concat(t.fixtures, " + "))
+    and run("At " .. ToAddr(t.to.handle))
+    and run('Off Attribute "Dimmer"')
+  Cmd('Off FeatureGroup "Control"', undo) -- Lampe/Reset o.ä. nicht mitnehmen
+
+  if ok and dimmerInProgrammer() then
+    err("%s: Dimmer liess sich nicht aus dem Programmer entfernen – nichts gespeichert",
+        cueLabel(t.from.handle))
+    ok = false
+  end
+  ok = ok and run("Fade " .. settings.fade) and run("Delay " .. settings.delay)
+    and run("Store " .. ToAddr(t.from.handle) .. " /Merge")
+
+  Cmd("ClearAll", undo)
+  Cmd("Blind Off", undo)
+
   if ok then
-    log("%s: MIB %s, Fade %ss, Delay %ss (%d Geräte)", cueLabel(t.to.handle),
-        settings.mode, settings.fade, settings.delay, #t.fixtures)
-  else
-    err("%s: MIB konnte nicht vollständig gesetzt werden – bitte im Sequence Sheet prüfen",
-        cueLabel(t.to.handle))
+    log("%s: %d Mover fahren in %ss (Delay %ss) auf %s", cueLabel(t.from.handle),
+        #t.fixtures, settings.fade, settings.delay, cueLabel(t.to.handle))
   end
   return ok
 end
@@ -151,27 +177,30 @@ local function selectFixtures(fixtures)
 end
 
 local function askTransition(t, index, total, last)
-  local list = table.concat(t.fixtures, ", ")
-  local modeIndex = (last.mode == "Late") and 2 or 1
+  local names, anyFadeOut = {}, false
+  for _, addr in ipairs(t.fixtures) do
+    if t.fadeOut[addr] then names[#names + 1] = addr .. " *"; anyFadeOut = true
+    else names[#names + 1] = addr end
+  end
   local box = MessageBox({
-    title = string.format("Move in Black %d/%d", index, total),
+    title = string.format("Szenenwechsel %d/%d", index, total),
     message = string.format(
-      "Szenenwechsel %s  ->  %s\n\n%d Movinghead(s) sind in der aktuellen Szene dunkel\n" ..
-      "und werden in der nächsten benutzt (sind jetzt selektiert):\n\n%s\n\n" ..
-      "In welcher Zeit sollen sie auf Position / Shaper / Beam / Color fahren?",
-      cueLabel(t.from.handle), cueLabel(t.to.handle), #t.fixtures, list),
+      "%s  ->  %s\n\n%d Movinghead(s) sind in %s dunkel und werden in der\n" ..
+      "nächsten Szene benutzt (sind jetzt selektiert):\n\n%s\n\n" ..
+      "Position / Shaper / Beam / Color der nächsten Szene werden in\n" ..
+      "%s gespeichert. In welcher Zeit sollen die Mover dort hinfahren?%s",
+      cueLabel(t.from.handle), cueLabel(t.to.handle), #t.fixtures,
+      cueLabel(t.from.handle), table.concat(names, ", "), cueLabel(t.from.handle),
+      anyFadeOut and "\n\n* wird in dieser Cue erst ausgeblendet – Delay mindestens\n  so lang wie das Ausfaden setzen!" or ""),
     inputs = {
       { name = "Fade (s)",  value = last.fade,  whiteFilter = "0123456789.", vkPlugin = "NumericInput", order = 1 },
       { name = "Delay (s)", value = last.delay, whiteFilter = "0123456789.", vkPlugin = "NumericInput", order = 2 },
-    },
-    selectors = {
-      { name = "MIB Modus", selectedValue = modeIndex, type = 1, values = { ["Early"] = 1, ["Late"] = 2 } },
     },
     states = {
       { name = "Für alle weiteren Wechsel übernehmen", state = false },
     },
     commands = {
-      { value = 1, name = "Setzen" },
+      { value = 1, name = "Speichern" },
       { value = 2, name = "Überspringen" },
       { value = 0, name = "Abbrechen" },
     },
@@ -181,7 +210,6 @@ local function askTransition(t, index, total, last)
   local settings = {
     fade  = tostring(tonumber(box.inputs["Fade (s)"]) or tonumber(last.fade)),
     delay = tostring(tonumber(box.inputs["Delay (s)"]) or tonumber(last.delay)),
-    mode  = MIB_MODES[box.selectors["MIB Modus"] or modeIndex] or "Early",
   }
   return "set", settings, box.states["Für alle weiteren Wechsel übernehmen"]
 end
@@ -196,8 +224,8 @@ local function Main(displayHandle, args)
   local setup = MessageBox({
     title = pluginName,
     message = string.format(
-      "Sequenz: %s\n\nDer Programmer wird geleert. Die Cues werden im Blind gelesen,\n" ..
-      "live wird nichts ausgegeben.", ToAddr(seq, true)),
+      "Sequenz: %s\n\nDer Programmer wird geleert. Lesen und Speichern passiert im\n" ..
+      "Blind, live wird nichts ausgegeben. Alles ist ein Oops-Schritt.", ToAddr(seq, true)),
     inputs = {
       { name = "Movinghead-Gruppe", value = (args and args ~= "") and args or DEFAULT_GROUP, order = 1 },
     },
@@ -230,13 +258,13 @@ local function Main(displayHandle, args)
                  commands = { { value = 1, name = "OK" } } })
     return
   end
-  log("%d Szenenwechsel mit Move in Black gefunden", #transitions)
+  log("%d Szenenwechsel mit Movern aus dem Dunkeln gefunden", #transitions)
 
   local undo = CreateUndo(pluginName)
-  local last = { fade = DEFAULT_FADE, delay = DEFAULT_DELAY, mode = "Early" }
+  local last = { fade = DEFAULT_FADE, delay = DEFAULT_DELAY }
   local applyAll, done, skipped = false, 0, 0
   for i, t in ipairs(transitions) do
-    selectFixtures(t.fixtures)
+    if not applyAll then selectFixtures(t.fixtures) end
     local action, settings = "set", last
     if not applyAll then
       action, settings, applyAll = askTransition(t, i, #transitions, last)
@@ -244,7 +272,7 @@ local function Main(displayHandle, args)
     if action == "cancel" then break end
     if action == "set" then
       last = settings
-      if applyMIB(t, settings, undo) then done = done + 1 end
+      if storeIntoSourceCue(t, settings, undo) then done = done + 1 end
     else
       skipped = skipped + 1
     end

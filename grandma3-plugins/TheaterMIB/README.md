@@ -6,9 +6,15 @@ nächsten Szene benutzt werden. Pro Szenenwechsel werden diese Geräte selektier
 (im Layout / Fixture Sheet sichtbar) und es wird gefragt, in welcher Zeit sie
 auf Position / Shaper / Beam / Color der nächsten Szene fahren sollen.
 
-Die Antwort wird als **Move In Black** in Part 0 der nächsten Cue eingetragen
-(`MIB` = Early/Late, `MIBFade`, `MIBDelay`). Das Vorpositionieren im Dunkeln
-macht danach die Konsole selbst.
+Die Werte der nächsten Szene – alles außer Dimmer (und Control) – werden mit
+dieser Zeit als **individuelles Fade/Delay in die Quell-Cue** gespeichert
+(`Store … /Merge`). Die Mover fahren also schon mit dem GO der aktuellen Szene
+im Dunkeln los und sind nach Delay + Fade fertig – egal, wann das nächste GO
+kommt.
+
+Geräte, die in der Quell-Cue selbst erst ausgeblendet werden, sind im Dialog
+mit `*` markiert. Dort das Delay mindestens so lang wie das Ausfaden setzen,
+sonst sieht man die Bewegung.
 
 ## Installation
 
@@ -22,19 +28,19 @@ macht danach die Konsole selbst.
 2. Eine Gruppe mit allen Movingheads anlegen, Standardname `MH`
    (oder `Call Plugin "TheaterMIB" "Gruppenname"`).
 3. Plugin starten, Gruppe und Bereich (ganze Sequenz / ab aktueller Cue) wählen.
-4. Für jeden gefundenen Szenenwechsel: Fade, Delay und MIB-Modus eingeben,
-   **Setzen**, **Überspringen** oder **Abbrechen**. Mit „Für alle weiteren
+4. Für jeden gefundenen Szenenwechsel: Fade und Delay eingeben,
+   **Speichern**, **Überspringen** oder **Abbrechen**. Mit „Für alle weiteren
    Wechsel übernehmen“ werden die restlichen ohne Nachfrage gesetzt.
 
 Alle Änderungen liegen in einem Undo-Schritt (`Oops`).
 
 ## Hinweise
 
-- Der Programmer wird geleert. Die Cues werden mit `Group … At Cue …` im
-  **Blind** in den Programmer geholt und der Dimmer ausgelesen – live wird
-  nichts ausgegeben.
-- Welche Attribute beim MIB mitfahren (Position, Shaper, Beam, Color …), regelt
-  die MIB-Einstellung der Attribute bzw. der Show; das Plugin setzt nur die Zeit.
+- Der Programmer wird geleert. Lesen (`Group … At Cue …`) und Speichern
+  passieren im **Blind** – live wird nichts ausgegeben.
+- Bleibt nach `Off Attribute "Dimmer"` noch ein Dimmerwert im Programmer,
+  wird für diesen Wechsel nichts gespeichert (Fehlermeldung in der
+  Kommandozeile), damit die Mover in der Quell-Cue nicht aufleuchten.
 - Das Plugin ist nicht an einer Konsole getestet. Bitte zuerst an einer
   Kopie der Show in grandMA3 onPC ausprobieren und im Sequence Sheet
-  (Spalten MIB / MIB Fade / MIB Delay) kontrollieren.
+  (Spalten Indiv Fade / Indiv Delay) bzw. im Tracking Sheet kontrollieren.

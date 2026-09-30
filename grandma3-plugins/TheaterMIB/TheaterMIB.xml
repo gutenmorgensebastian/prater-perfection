@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GMA3 DataVersion="2.2.0.0">
+  <UserPlugin Name="TheaterMIB" Version="1.0.0.0" Path="TheaterMIB">
+    <ComponentLua Name="TheaterMIB" FileName="TheaterMIB.lua"/>
+  </UserPlugin>
+</GMA3>

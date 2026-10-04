@@ -1,0 +1,25 @@
+{
+  "name": "dienstplan-app",
+  "version": "1.0.0",
+  "description": "Gemeinsamer Kalender, Chat und Dienstplan-Import für das Technik-Team",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "admin-link": "node scripts/admin-link.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "express": "^5.2.1",
+    "fullcalendar": "^6.1.21",
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.4.299",
+    "web-push": "^3.6.7"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
+}

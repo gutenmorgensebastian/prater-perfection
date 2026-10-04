@@ -61,6 +61,9 @@ test('Grid -> Kalendereinträge: Nachtdienst, nur Prater-Veranstaltungen', () =>
 
 test('Prater-Einträge aus Zelltext', () => {
   assert.deepEqual(splitByPlaces('3. STOCK 19:00 P14 PRATER-FOYER 17:00 Bar').map((x) => x.place), ['3. STOCK', 'PRATER-FOYER']);
+  assert.deepEqual(venueEntries('PRATER-PROBEBÜHNE 14:00 Boxing Girls · Workshop'), [
+    { start: '14:00', end: null, title: 'Boxing Girls', notes: 'Workshop', location: 'Prater-Probebühne' },
+  ]);
   assert.deepEqual(venueEntries('PRATER 11-15 interne VA 18:00 Gespräch · mit Gästen 3. STOCK P14'), [
     { start: '11:00', end: '15:00', title: 'interne VA', notes: '', location: 'Prater' },
     { start: '18:00', end: null, title: 'Gespräch', notes: 'mit Gästen', location: 'Prater' },

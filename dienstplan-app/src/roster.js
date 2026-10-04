@@ -104,8 +104,9 @@ function timed(date, start, end) {
 
 // --- Nur Veranstaltungen im Prater ---------------------------------------------------
 // Orte, wie sie in Großbuchstaben in Dienst- und Spielplänen vor den Einträgen stehen.
-const PLACES = ['PRATER-FOYER', 'PRATER', '3. STOCK', '3.STOCK', 'ROTER SALON', 'GRÜNER SALON', 'STERNFOYER', 'FOYERS', 'VORBÜHNE', 'TREFFPUNKT KASSENHALLE', 'BÜHNE'];
-const PLACE_RE = new RegExp(`(?<=^|\\s)(${PLACES.map((p) => p.replace(/\./g, '\\.')).join('|')})(?=\\s|$)`, 'g');
+// "PRATER-…" deckt Foyer, Probebühne usw. ab.
+const PLACES = ['PRATER-[A-ZÄÖÜ]+', 'PRATER', '3\\. ?STOCK', 'ROTER SALON', 'GRÜNER SALON', 'STERNFOYER', 'FOYERS', 'VORBÜHNE', 'TREFFPUNKT KASSENHALLE', 'BÜHNE'];
+const PLACE_RE = new RegExp(`(?<=^|\\s)(${PLACES.join('|')})(?=\\s|$)`, 'g');
 export const isPraterPlace = (place) => /^PRATER/i.test(place || '');
 const prettyPlace = (place) => place.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 

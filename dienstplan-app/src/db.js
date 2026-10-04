@@ -83,6 +83,76 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `);
 
+// To-Dos, Fragen, Infos, Bestellwünsche
+db.exec(`
+CREATE TABLE IF NOT EXISTS todos (
+  id INTEGER PRIMARY KEY,
+  parent_id INTEGER REFERENCES todos(id) ON DELETE CASCADE, -- gesetzt = Unteraufgabe
+  title TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  flagged INTEGER NOT NULL DEFAULT 0,  -- rotes Fähnchen
+  position REAL NOT NULL DEFAULT 0,    -- gemeinsame Reihenfolge
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  done_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  done_at TEXT
+);
+CREATE TABLE IF NOT EXISTS todo_assignees (
+  todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  PRIMARY KEY (todo_id, person_id)
+);
+CREATE TABLE IF NOT EXISTS todo_tags (
+  todo_id INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (todo_id, tag)
+);
+-- Anhänge an To-Dos, Infos und Bestellwünsche (kind = todo | info | order)
+CREATE TABLE IF NOT EXISTS item_attachments (
+  kind TEXT NOT NULL,
+  item_id INTEGER NOT NULL,
+  attachment_id INTEGER NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+  PRIMARY KEY (kind, item_id, attachment_id)
+);
+CREATE TABLE IF NOT EXISTS questions (
+  id INTEGER PRIMARY KEY,
+  from_id INTEGER REFERENCES people(id) ON DELETE CASCADE,
+  to_id INTEGER REFERENCES people(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', -- open | done
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE TABLE IF NOT EXISTS question_replies (
+  id INTEGER PRIMARY KEY,
+  question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  person_id INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE TABLE IF NOT EXISTS infos (
+  id INTEGER PRIMARY KEY,
+  category TEXT NOT NULL DEFAULT 'Allgemein',
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  quantity TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open', -- open | claimed | ordered | done
+  claimed_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+`);
+
 export const newToken = () => crypto.randomBytes(24).toString('base64url');
 
 export function getSetting(key) {

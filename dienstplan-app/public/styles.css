@@ -207,3 +207,94 @@ code.url { display: block; padding: .5rem; background: var(--surface-2); border-
 @media (min-width: 800px) {
   .chat { height: calc(100dvh - 230px); }
 }
+
+/* Untere Leiste mit vielen Reitern */
+.tabbar a { font-size: .66rem; min-width: 0; }
+.tabbar a .ico { font-size: 1.25rem; }
+@media (min-width: 700px) { .tabbar a { font-size: .78rem; } }
+
+/* Gemeinsame Bausteine der Listen */
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .7rem; }
+.toolbar input[type=search] { flex: 1 1 220px; }
+.avatar {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--c, var(--muted)); color: #fff; font-size: .68rem; font-weight: 700; flex: 0 0 auto;
+}
+.avatars { display: inline-flex; gap: 2px; }
+.tag { display: inline-block; padding: 0 .45rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .78rem; cursor: pointer; border: none; }
+.tag:hover { color: var(--text); }
+.pill { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; background: var(--surface-2); color: var(--muted); }
+.pill.open { background: #dbeafe; color: #1e40af; }
+.pill.work { background: #fef3c7; color: #92400e; }
+.pill.done { background: #dcfce7; color: #166534; }
+.pill.wait { background: #fee2e2; color: #991b1b; }
+.flag { color: #dc2626; }
+.empty { padding: 1.2rem; text-align: center; color: var(--muted); }
+section.group > h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 1.1rem 0 .4rem; }
+details.done-section > summary { cursor: pointer; color: var(--muted); margin: 1rem 0 .4rem; }
+.handle { cursor: grab; color: var(--muted); padding: .1rem .2rem; touch-action: none; user-select: none; }
+.sortable-ghost { opacity: .35; }
+
+/* To-Dos */
+.todo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.todo { display: flex; gap: .5rem; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .55rem .6rem; }
+.todo.flagged { border-color: #fca5a5; box-shadow: inset 3px 0 0 #dc2626; }
+.todo input[type=checkbox] { width: 20px; height: 20px; margin-top: .1rem; flex: 0 0 auto; accent-color: var(--accent); }
+.todo .main { flex: 1; min-width: 0; cursor: pointer; }
+.todo .title { overflow-wrap: anywhere; }
+.todo.done .title { text-decoration: line-through; color: var(--muted); }
+.todo .meta { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin-top: .25rem; font-size: .8rem; color: var(--muted); }
+.subs { list-style: none; margin: .35rem 0 0; padding: 0; display: grid; gap: .15rem; }
+.subs li { display: flex; gap: .4rem; align-items: center; font-size: .9rem; }
+.subs li input { width: 16px; height: 16px; margin: 0; }
+.subs li.done span { text-decoration: line-through; color: var(--muted); }
+.quick-add { display: flex; gap: .4rem; margin-bottom: .7rem; }
+.pick { display: flex; flex-wrap: wrap; gap: .35rem; }
+.pick .chip input { display: none; }
+
+/* Anhänge */
+.atts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .4rem; align-items: center; }
+.att { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .5rem; border-radius: 8px; background: var(--surface-2); font-size: .85rem; max-width: 100%; }
+.att a { display: inline-flex; align-items: center; gap: .3rem; color: var(--text); text-decoration: none; min-width: 0; }
+.att a span { overflow-wrap: anywhere; }
+.att img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.att-add { font-size: .85rem; padding: .3rem .6rem; }
+.att-add.busy { opacity: .5; }
+
+/* Fragen */
+.q { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .7rem .8rem; margin-bottom: .6rem; }
+.q.waiting { border-color: #fca5a5; }
+.q .head { display: flex; gap: .45rem; align-items: center; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+.q .text { margin: .4rem 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.02rem; }
+.q .replies { border-left: 3px solid var(--border); padding-left: .6rem; margin: .4rem 0; display: grid; gap: .35rem; }
+.q .reply .who { font-size: .78rem; color: var(--muted); }
+.q .reply .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.q form { display: flex; gap: .4rem; margin-top: .4rem; }
+.q .actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .4rem; }
+
+/* Infos */
+.info { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .8rem .9rem; margin-bottom: .6rem; }
+.info.ansage { border-color: #f59e0b; box-shadow: inset 4px 0 0 #f59e0b; }
+.info.sicherheit { box-shadow: inset 4px 0 0 #dc2626; }
+.info h3 { margin: 0; font-size: 1.05rem; display: flex; gap: .4rem; align-items: center; }
+.info h3 .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.info .body { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0 0; }
+.info .foot { font-size: .78rem; color: var(--muted); margin-top: .4rem; }
+
+/* Bestellwünsche */
+.order { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .65rem .8rem; margin-bottom: .5rem; display: grid; gap: .35rem; }
+.order .top { display: flex; gap: .5rem; align-items: baseline; cursor: pointer; }
+.order .top .what { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.order .qty { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.order .who { display: flex; gap: .4rem; align-items: center; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
+.order .notes { font-size: .9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.order .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.order .actions button { padding: .35rem .7rem; font-size: .9rem; }
+.order.done .what { text-decoration: line-through; color: var(--muted); }
+.order-add { display: grid; grid-template-columns: 1fr 7rem auto; gap: .4rem; margin-bottom: .8rem; }
+@media (max-width: 480px) { .order-add { grid-template-columns: 1fr 5.5rem auto; } }
+table.sp-grid { min-width: 720px; }
+table.sp-grid td { min-width: 0; }
+table.sp-grid td:first-child { width: 2rem; text-align: center; }
+table.sp-grid input[type=time] { width: 6.5rem; }
+.info h3 .link { font-size: .85rem; font-weight: 500; flex: 0 0 auto; }

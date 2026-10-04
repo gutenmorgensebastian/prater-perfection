@@ -102,6 +102,48 @@ function timed(date, start, end) {
   return { start: s, end: `${endDate}T${end === '24:00' ? '23:59' : end}` };
 }
 
+// --- Nur Veranstaltungen im Prater ---------------------------------------------------
+// Orte, wie sie in Großbuchstaben in Dienst- und Spielplänen vor den Einträgen stehen.
+const PLACES = ['PRATER-FOYER', 'PRATER', '3. STOCK', '3.STOCK', 'ROTER SALON', 'GRÜNER SALON', 'STERNFOYER', 'FOYERS', 'VORBÜHNE', 'TREFFPUNKT KASSENHALLE', 'BÜHNE'];
+const PLACE_RE = new RegExp(`(?<=^|\\s)(${PLACES.map((p) => p.replace(/\./g, '\\.')).join('|')})(?=\\s|$)`, 'g');
+export const isPraterPlace = (place) => /^PRATER/i.test(place || '');
+const prettyPlace = (place) => place.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+
+// Zerlegt Zelltext an Ortsangaben: "3. STOCK 19:00 … PRATER 20:00 …" -> [{ place, text }].
+export function splitByPlaces(text) {
+  const t = String(text ?? '').replace(/\s+/g, ' ').trim();
+  const marks = [...t.matchAll(PLACE_RE)];
+  const out = [];
+  const lead = t.slice(0, marks[0]?.index ?? t.length).trim();
+  if (lead) out.push({ place: null, text: lead });
+  marks.forEach((m, i) => out.push({ place: m[1], text: t.slice(m.index + m[0].length, marks[i + 1]?.index ?? t.length).trim() }));
+  return out;
+}
+
+// Prater-Veranstaltungen aus einer Zelle. defaultPlace: Ort für Text ohne Ortsangabe
+// (nur gesetzt, wenn die ganze Zeile zum Prater gehört).
+export function venueEntries(cell, defaultPlace = null) {
+  const out = [];
+  for (const seg of splitByPlaces(cell)) {
+    const place = seg.place ? prettyPlace(seg.place) : defaultPlace;
+    if (!place || (seg.place && !isPraterPlace(seg.place))) continue;
+    // "11-15 interne VA" -> "11:00-15:00 interne VA"
+    const text = seg.text.replace(/(^|\s)(\d{1,2})-(\d{1,2})(?=\s)/g, '$1$2:00-$3:00');
+    for (const v of parseVenueCell(text)) {
+      const parts = v.title.split(' · ');
+      const split = v.start && parts.length > 1;
+      out.push({ ...v, title: split ? parts[0] : v.title, notes: split ? parts.slice(1).join(' · ') : '', location: place });
+    }
+  }
+  return out;
+}
+
+export function venueEvent(date, v) {
+  const base = { kind: 'venue', person_id: null, title: v.title, location: v.location, notes: v.notes || '' };
+  if (v.start) return { ...base, ...timed(date, v.start, v.end), all_day: 0 };
+  return { ...base, start: date, end: addDays(date, 1), all_day: 1 };
+}
+
 // Grid -> Liste von Kalendereinträgen. personIds[rowIndex] ordnet Personenzeilen einer Person zu
 // (null = Zeile ignorieren).
 export function gridToEvents(grid, personIds) {
@@ -111,11 +153,7 @@ export function gridToEvents(grid, personIds) {
       const date = grid.dates[c];
       if (!date) return;
       if (row.kind === 'area') {
-        for (const v of parseVenueCell(cell)) {
-          const base = { kind: 'venue', person_id: null, title: v.title, location: row.label };
-          if (v.start) events.push({ ...base, ...timed(date, v.start, v.end), all_day: 0 });
-          else events.push({ ...base, start: date, end: addDays(date, 1), all_day: 1 });
-        }
+        for (const v of venueEntries(cell, row.import ? row.label : null)) events.push(venueEvent(date, v));
         return;
       }
       const personId = personIds[r];
@@ -151,6 +189,8 @@ export function sanitizeGrid(input) {
   const rows = (Array.isArray(input.rows) ? input.rows : []).map((r) => ({
     label: String(r.label ?? '').trim().slice(0, 100),
     kind: r.kind === 'area' ? 'area' : 'person',
+    // Bereichszeile komplett als Prater-Veranstaltungen übernehmen (sonst nur Einträge mit "PRATER")
+    import: r.import === undefined ? /prater/i.test(String(r.label ?? '')) : Boolean(r.import),
     cells: Array.from({ length: 7 }, (_, i) => String(r.cells?.[i] ?? '').slice(0, 500)),
   })).filter((r) => r.label);
   return { title: String(input.title ?? '').slice(0, 200), dates, rows };

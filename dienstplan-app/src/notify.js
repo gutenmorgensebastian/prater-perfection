@@ -51,10 +51,23 @@ export function removeSubscription(endpoint) {
 }
 
 // Benachrichtigt alle Abos außer denen der Person exceptPersonId.
-export async function pushAll({ title, body, url = '/' }, exceptPersonId = null) {
+export function pushAll(message, exceptPersonId = null) {
   const subs = db.prepare(`SELECT s.* FROM push_subscriptions s JOIN people p ON p.id = s.person_id
     WHERE p.role != 'none' AND p.token IS NOT NULL AND s.person_id IS NOT ?`).all(exceptPersonId);
-  const payload = JSON.stringify({ title, body: body.slice(0, 180), url });
+  return send(subs, message);
+}
+
+// Benachrichtigt nur bestimmte Personen (z. B. wem eine Aufgabe oder Frage gilt).
+export function pushTo(personIds, message) {
+  const ids = [...new Set(personIds)].filter(Boolean);
+  if (!ids.length) return Promise.resolve();
+  const subs = db.prepare(`SELECT s.* FROM push_subscriptions s JOIN people p ON p.id = s.person_id
+    WHERE p.role != 'none' AND p.token IS NOT NULL AND s.person_id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  return send(subs, message);
+}
+
+async function send(subs, { title, body, url = '/' }) {
+  const payload = JSON.stringify({ title, body: String(body).slice(0, 180), url });
   await Promise.all(subs.map(async (s) => {
     try {
       await webpush.sendNotification({ endpoint: s.endpoint, keys: JSON.parse(s.keys) }, payload, { TTL: 3600 });

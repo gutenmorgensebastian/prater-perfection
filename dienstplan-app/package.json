@@ -15,6 +15,7 @@
     "fullcalendar": "^6.1.21",
     "multer": "^2.4.0",
     "pdfjs-dist": "^6.4.299",
+    "sortablejs": "^1.15.7",
     "web-push": "^3.6.7"
   },
   "type": "module",

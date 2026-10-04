@@ -33,7 +33,7 @@ function renderChips(root) {
   const chip = (key, label, on, color) => `<span class="chip ${on ? 'on' : 'off'}" data-key="${key}" style="--c:${color}"><span class="dot"></span>${esc(label)}</span>`;
   const people = state.people.filter((p) => p.roster_name || p.role !== 'none');
   root.innerHTML = [
-    chip('venue', 'Veranstaltungen', f.venue, VENUE_COLOR),
+    chip('venue', 'Prater-Veranstaltungen', f.venue, VENUE_COLOR),
     chip('custom', 'Termine', f.custom, CUSTOM_COLOR),
     chip('off', 'Frei-Tage', f.off, '#9ca3af'),
     ...people.map((p) => chip(`p${p.id}`, p.name, !f.hidden.includes(p.id), p.color)),
@@ -190,7 +190,7 @@ export function subscribeHtml() {
       (Apple meist stündlich, Google alle paar Stunden).</p>
     <div id="sub-people" class="chips">${people.map((p) => `<label class="chip ${prefs.people.includes(p.id) ? 'on' : 'off'}" style="--c:${p.color}">
       <input type="checkbox" hidden value="${p.id}" ${prefs.people.includes(p.id) ? 'checked' : ''}><span class="dot"></span>${esc(p.name)}</label>`).join('')}</div>
-    <label class="check"><input type="checkbox" id="sub-venue" ${prefs.venue ? 'checked' : ''}> Veranstaltungen (Bühne, Salons …)</label>
+    <label class="check"><input type="checkbox" id="sub-venue" ${prefs.venue ? 'checked' : ''}> Prater-Veranstaltungen (aus Dienst- &amp; Spielplan)</label>
     <label class="check"><input type="checkbox" id="sub-custom" ${prefs.custom ? 'checked' : ''}> Gemeinsame Termine</label>
     <label class="check"><input type="checkbox" id="sub-off" ${prefs.off ? 'checked' : ''}> Frei-Tage</label>
     <h3>Abonnieren</h3>

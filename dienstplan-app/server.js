@@ -1,12 +1,13 @@
 import express from 'express';
-import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOAD_DIR, bootstrap, createPerson, newToken, nextColor } from './src/db.js';
-import { gridToEvents, sanitizeGrid } from './src/roster.js';
+import { HttpError, intParam, requireWriter, requireAdmin, upload, saveAttachment } from './src/http.js';
+import { registerTeamRoutes } from './src/team.js';
+import { gridToEvents, sanitizeGrid, venueEvent } from './src/roster.js';
 import { parseRosterPdfText } from './src/pdf-text.js';
+import { parseSpielplanPdf } from './src/spielplan.js';
 import { parseRosterPdfClaude, claudeAvailable } from './src/pdf-claude.js';
 import { buildIcs } from './src/ics.js';
 import { liveStream, broadcast, pushAll, saveSubscription, removeSubscription, vapidPublicKey } from './src/notify.js';
@@ -24,15 +25,6 @@ app.use((req, res, next) => {
 });
 
 const baseUrl = (req) => (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-
-class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
-const intParam = (v) => {
-  const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw new HttpError(400, 'Ungültige ID');
-  return n;
-};
 
 // --- Anmeldung über persönlichen Einladungslink -----------------------------
 function readCookie(req, name) {
@@ -71,31 +63,14 @@ const requireAuth = (req, res, next) => {
   if (!req.person) return res.status(401).json({ error: 'Nicht angemeldet. Bitte öffne deinen persönlichen Einladungslink.' });
   next();
 };
-const requireWriter = (req, res, next) => (req.person.role === 'viewer' ? res.status(403).json({ error: 'Nur Lesezugriff' }) : next());
-const requireAdmin = (req, res, next) => (req.person.role === 'admin' ? next() : res.status(403).json({ error: 'Nur für Admins' }));
 
 // --- Dateien ---------------------------------------------------------------
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOAD_DIR,
-    filename: (req, file, cb) => cb(null, crypto.randomBytes(16).toString('hex') + path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '')),
-  }),
-  limits: { fileSize: 25 * 1024 * 1024 },
-});
-
-function saveAttachment(file, personId) {
-  // multer liefert Dateinamen als latin1; zurück nach UTF-8, damit Umlaute stimmen.
-  const original = Buffer.from(file.originalname, 'latin1').toString('utf8');
-  const res = db.prepare('INSERT INTO attachments (original_name, stored_name, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?)')
-    .run(original, file.filename, file.mimetype, file.size, personId);
-  return db.prepare('SELECT * FROM attachments WHERE id = ?').get(res.lastInsertRowid);
-}
-
 const INLINE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 // --- Statische Dateien -----------------------------------------------------
 app.get('/vendor/fullcalendar.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/fullcalendar/index.global.min.js')));
 app.get('/shared/roster.js', (req, res) => res.sendFile(path.join(ROOT, 'src/roster.js')));
+app.get('/vendor/sortable.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/sortablejs/Sortable.min.js')));
 app.get('/vendor/fullcalendar-de.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/@fullcalendar/core/locales/de.global.min.js')));
 app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
 
@@ -277,6 +252,8 @@ api.get('/files/:id', (req, res) => {
   res.sendFile(path.join(UPLOAD_DIR, a.stored_name));
 });
 
+registerTeamRoutes(api);
+
 // --- Admin -----------------------------------------------------------------
 const admin = express.Router();
 api.use('/admin', requireAdmin, admin);
@@ -411,6 +388,76 @@ admin.post('/rosters', upload.single('file'), async (req, res) => {
   res.json({ roster: rosterOut(db.prepare('SELECT * FROM rosters WHERE id = ?').get(r.lastInsertRowid)), assignments: suggestAssignments(grid), warnings });
 });
 
+// Trägt einen Eintrag ein. Veranstaltungen, die schon aus einer anderen Quelle (Dienstplan bzw.
+// Spielplan) mit gleicher Anfangszeit im Kalender stehen, werden nicht doppelt angelegt.
+function insertEvent(e, rosterId, personId) {
+  if (e.kind === 'venue' && db.prepare("SELECT 1 FROM events WHERE kind = 'venue' AND start = ? AND roster_id IS NOT ? AND location LIKE 'Prater%'").get(e.start, rosterId)) return 0;
+  db.prepare('INSERT INTO events (kind, person_id, roster_id, title, location, notes, start, end, all_day, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(e.kind, e.person_id, rosterId, e.title, e.location, e.notes || '', e.start, e.end, e.all_day, personId);
+  return 1;
+}
+
+// Spielplan (Monatsübersicht) einlesen: nur Veranstaltungen im Prater.
+const SP_TIME = /^\d{2}:\d{2}$/;
+function sanitizePlan(input) {
+  const month = String(input?.month || '');
+  if (!/^\d{4}-\d{2}$/.test(month)) throw new HttpError(400, 'Monat fehlt');
+  const events = (Array.isArray(input.events) ? input.events : []).slice(0, 500).map((e) => ({
+    date: String(e.date || ''), start: SP_TIME.test(e.start) ? e.start : null, end: SP_TIME.test(e.end) && SP_TIME.test(e.start) ? e.end : null,
+    title: String(e.title || '').trim().slice(0, 300), notes: String(e.notes || '').slice(0, 2000),
+    location: String(e.location || 'Prater').slice(0, 60), include: e.include !== false,
+  })).filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.title);
+  return { type: 'spielplan', title: String(input.title || '').slice(0, 200), month, events };
+}
+
+admin.post('/spielplan', upload.single('file'), async (req, res) => {
+  if (!req.file) throw new HttpError(400, 'Bitte ein PDF auswählen');
+  const attachment = saveAttachment(req.file, req.person.id);
+  let plan;
+  try {
+    plan = sanitizePlan(await parseSpielplanPdf(fs.readFileSync(req.file.path)));
+  } catch (err) {
+    throw new HttpError(422, `Spielplan nicht erkannt: ${err.message}`);
+  }
+  const r = db.prepare("INSERT INTO rosters (title, week_start, attachment_id, method, grid, uploaded_by) VALUES (?, ?, ?, 'spielplan', ?, ?)")
+    .run(plan.title, `${plan.month}-01`, attachment.id, JSON.stringify(plan), req.person.id);
+  const warnings = plan.events.length ? [] : ['Im Spielplan wurden keine Prater-Veranstaltungen gefunden.'];
+  res.json({ roster: rosterOut(db.prepare('SELECT * FROM rosters WHERE id = ?').get(r.lastInsertRowid)), warnings });
+});
+
+admin.post('/spielplan/:id/publish', (req, res) => {
+  const roster = db.prepare("SELECT * FROM rosters WHERE id = ? AND method = 'spielplan'").get(intParam(req.params.id));
+  if (!roster) throw new HttpError(404, 'Spielplan nicht gefunden');
+  const plan = sanitizePlan(req.body?.plan);
+  let count = 0;
+  let replaced = false;
+  db.exec('BEGIN');
+  try {
+    // Ältere Fassungen desselben Monats ersetzen ("aktualisierter Spielplan").
+    const previous = db.prepare("SELECT id FROM rosters WHERE week_start = ? AND status = 'published' AND method = 'spielplan' AND id != ?").all(`${plan.month}-01`, roster.id);
+    for (const p of previous) {
+      db.prepare('DELETE FROM events WHERE roster_id = ?').run(p.id);
+      db.prepare("UPDATE rosters SET status = 'replaced' WHERE id = ?").run(p.id);
+    }
+    db.prepare('DELETE FROM events WHERE roster_id = ?').run(roster.id);
+    for (const e of plan.events.filter((x) => x.include)) count += insertEvent(venueEvent(e.date, e), roster.id, req.person.id);
+    db.prepare("UPDATE rosters SET grid = ?, title = ?, week_start = ?, status = 'published', published_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(plan), plan.title, `${plan.month}-01`, roster.id);
+    db.exec('COMMIT');
+    replaced = previous.length > 0 || roster.status === 'published';
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  broadcast('events');
+  const channel = Number(req.body?.announce_channel_id) && db.prepare('SELECT * FROM channels WHERE id = ?').get(Number(req.body.announce_channel_id));
+  if (channel) {
+    const attachment = roster.attachment_id && db.prepare('SELECT * FROM attachments WHERE id = ?').get(roster.attachment_id);
+    postMessage(channel, req.person, `🎭 ${replaced ? 'Aktualisierter Spielplan' : 'Neuer Spielplan'}: ${plan.title} – ${count} Prater-Veranstaltungen stehen jetzt im Kalender.`, attachment);
+  }
+  res.json({ ok: true, events: count, replaced });
+});
+
 admin.get('/rosters', (req, res) => {
   res.json(db.prepare(`SELECT r.id, r.title, r.week_start, r.method, r.status, r.created_at, r.published_at, r.attachment_id
     FROM rosters r ORDER BY r.id DESC LIMIT 50`).all());
@@ -420,6 +467,7 @@ admin.get('/rosters/:id', (req, res) => {
   const r = db.prepare('SELECT * FROM rosters WHERE id = ?').get(intParam(req.params.id));
   if (!r) throw new HttpError(404, 'Dienstplan nicht gefunden');
   const roster = rosterOut(r);
+  if (r.method === 'spielplan') return res.json({ roster, warnings: [] });
   res.json({ roster, assignments: suggestAssignments(roster.grid), warnings: [] });
 });
 
@@ -447,17 +495,13 @@ admin.post('/rosters/:id/publish', (req, res) => {
       return Number.isInteger(id) && db.prepare('SELECT 1 FROM people WHERE id = ?').get(id) ? id : null;
     });
     // Ältere Fassungen derselben Woche ersetzen ("Änderungen vorbehalten").
-    const previous = db.prepare("SELECT id FROM rosters WHERE week_start = ? AND status = 'published' AND id != ?").all(grid.dates[0], roster.id);
+    const previous = db.prepare("SELECT id FROM rosters WHERE week_start = ? AND status = 'published' AND method != 'spielplan' AND id != ?").all(grid.dates[0], roster.id);
     for (const p of previous) {
       db.prepare('DELETE FROM events WHERE roster_id = ?').run(p.id);
       db.prepare("UPDATE rosters SET status = 'replaced' WHERE id = ?").run(p.id);
     }
     db.prepare('DELETE FROM events WHERE roster_id = ?').run(roster.id);
-    const ins = db.prepare('INSERT INTO events (kind, person_id, roster_id, title, location, start, end, all_day, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    for (const e of gridToEvents(grid, personIds)) {
-      ins.run(e.kind, e.person_id, roster.id, e.title, e.location, e.start, e.end, e.all_day, req.person.id);
-      count++;
-    }
+    for (const e of gridToEvents(grid, personIds)) count += insertEvent(e, roster.id, req.person.id);
     db.prepare("UPDATE rosters SET grid = ?, title = ?, week_start = ?, status = 'published', published_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(grid), grid.title, grid.dates[0], roster.id);
     db.exec('COMMIT');

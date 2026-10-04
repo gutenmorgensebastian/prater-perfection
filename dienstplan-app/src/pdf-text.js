@@ -7,14 +7,20 @@ import { isoWeekMonday, addDays, looksLikePersonRow } from './roster.js';
 const DATE_RE = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
 const WEEKDAYS = ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag'];
 
-export async function pdfTextItems(buffer, pageNo = 1) {
+// Textstücke mit Position je Seite: [[{ str, x, y, w }], …]
+export async function pdfPages(buffer, maxPages = 10) {
   const doc = await getDocument({ data: new Uint8Array(buffer), verbosity: 0, isEvalSupported: false }).promise;
-  const page = await doc.getPage(pageNo);
-  const content = await page.getTextContent();
-  return content.items
-    .filter((it) => it.str && it.str.trim())
-    .map((it) => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], w: it.width }));
+  const pages = [];
+  for (let n = 1; n <= Math.min(doc.numPages, maxPages); n++) {
+    const content = await (await doc.getPage(n)).getTextContent();
+    pages.push(content.items
+      .filter((it) => it.str && it.str.trim())
+      .map((it) => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5], w: it.width })));
+  }
+  return pages;
 }
+
+export const pdfTextItems = async (buffer) => (await pdfPages(buffer, 1))[0] || [];
 
 // Kern der Erkennung, getrennt von pdf.js, damit er testbar ist.
 // items: [{ str, x, y, w }] in PDF-Koordinaten (y wächst nach oben).

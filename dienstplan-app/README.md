@@ -1,17 +1,33 @@
-# Dienstplan-App (Kalender · Dienstplan · Chat)
+# Dienstplan-App (Kalender · Chat · To-Dos · Fragen · Infos · Bestellen)
 
 Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (Android und iPhone).
 
 - **Gemeinsamer Kalender.** Wer einen Einladungslink bekommt, sieht den Kalender sofort, ohne Passwort und ohne App-Store.
 - **Abo im Handykalender.** Der Kalender lässt sich in Google Kalender, Apple Kalender oder Outlook abonnieren. Jede Person wählt selbst, wessen Dienste dort erscheinen.
 - **Dienstplan-Import.** PDF hochladen, die Vorschau prüfen und veröffentlichen. Dann stehen alle Dienste automatisch im Kalender, jeweils der Person zugeordnet.
-  - Im Kalender lässt sich jede Person einzeln ein- und ausblenden (farbige Chips), dazu Veranstaltungen und Frei-Tage.
+  - Im Kalender lässt sich jede Person einzeln ein- und ausblenden (farbige Chips), dazu Prater-Veranstaltungen und Frei-Tage.
   - Kommt eine geänderte Fassung derselben Woche, lädst du sie einfach neu hoch. Die alte wird ersetzt.
 - **Chat.**
   - Mehrere Gruppen, jede ist ein eigener Tab.
   - PDFs, Bilder und Links lassen sich anhängen.
   - Pro Gruppe gibt es eine **Ablage** mit allen Dateien, Links und angepinnten Nachrichten.
-- **Benachrichtigungen** bei neuen Nachrichten und neuen Dienstplänen. Auf dem iPhone geht das nur, wenn die Seite zum Home-Bildschirm hinzugefügt wurde.
+- **Spielplan-Import.** Der Monats-Spielplan der Volksbühne (PDF) wird eingelesen. Alle Prater-Veranstaltungen landen im Kalender, inklusive Prater-Foyer, TE, EP und Bauproben.
+- **To-Dos.**
+  - Aufgaben mit Unteraufgaben, einer oder mehreren zuständigen Personen und Tags.
+  - Fotos und Dateien lassen sich anhängen.
+  - 🚩 rotes Fähnchen für wirklich Wichtiges.
+  - Reihenfolge per Ziehen am ⠿-Griff.
+  - Filter „Nur meine“ und „Meine zuerst“.
+  - Suche nach Wort, Person oder `#tag`.
+  - Bewusst ohne Termine, Erinnerungen und Prioritätsstufen.
+- **Fragen an …:** Jede Frage geht an eine Person. Sie sehen nur die beiden Beteiligten, auch Admins sehen fremde Fragen nicht. Zwei Ansichten: „An mich“ und „Von mir gestellt“. Mit Antworten, „Erledigt“ und einer Zahl am Reiter, wenn etwas auf dich wartet.
+- **Infos:**
+  - Sicherheitsbestimmungen, Anleitungen (z. B. Alarmanlage), wichtige PDFs und Ansagen, sortiert nach Rubriken.
+  - Bei einer **Ansage** bekommen alle eine Benachrichtigung.
+- **Bestellen:**
+  - Bestellwünsche mit Menge, Notiz bzw. Shop-Link und Fotos.
+  - Mit „🙋 Ich kümmere mich“ übernimmt jemand den Wunsch, danach folgen „Bestellt“ und „Erledigt / ist da“.
+- **Benachrichtigungen** bei neuen Nachrichten, neuen Dienstplänen, To-Dos für dich, Fragen und Antworten an dich und Ansagen. Auf dem iPhone geht das nur, wenn die Seite zum Home-Bildschirm hinzugefügt wurde.
 
 ## Dienstplan-Erkennung
 
@@ -22,7 +38,20 @@ Es gibt zwei Wege, das PDF einzulesen. Vor dem Veröffentlichen kommt bei beiden
 | **Textebene des PDFs** | kostenlos | Funktioniert, wenn der Scanner Texterkennung macht. Beim aktuellen Plan (Sharp-Kopierer) ist das so, und typische Lesefehler wie `18:C)0` werden automatisch korrigiert. |
 | **KI (Claude)** | ca. 1–5 Cent pro PDF | Funktioniert auch bei reinen Bild-Scans oder Fotos. Liest zuverlässiger. Dafür muss `ANTHROPIC_API_KEY` gesetzt sein. |
 
-Codes wie `F`, `F 40.2` oder `FÜ` werden als **Frei** eingetragen. Frei-Tage sind standardmäßig ausgeblendet und lassen sich einblenden. Zeilen wie „Bühne“ oder „Roter Salon“ werden zu **Veranstaltungen**.
+Codes wie `F`, `F 40.2` oder `FÜ` werden als **Frei** eingetragen. Frei-Tage sind standardmäßig ausgeblendet und lassen sich einblenden.
+
+Von den Bereichszeilen (Bühne, 3. Stock, Roter und Grüner Salon …) kommen **nur Prater-Veranstaltungen** in den Kalender. Das sind:
+- eine Zeile namens „Prater“,
+- Einträge, die mit `PRATER` beginnen,
+- Zeilen, die du in der Vorschau per Häkchen als Prater markierst.
+
+## Spielplan-Erkennung
+
+Der Monats-Spielplan („Aktualisierter Spielplan November 2026“) kommt als PDF aus Word und hat echten Text. Er wird deshalb kostenlos und zuverlässig gelesen.
+- Übernommen werden alle Einträge mit `PRATER` oder `PRATER-FOYER`. Die meisten stehen in der Spalte „3.Stock & Prater“.
+- In der Vorschau kannst du einzelne Einträge abwählen oder korrigieren.
+- Ein aktualisierter Spielplan desselben Monats ersetzt den alten.
+- Steht eine Veranstaltung schon aus dem Dienstplan im Kalender (gleiche Anfangszeit), wird sie nicht doppelt eingetragen.
 
 ## Warum nicht OneDrive, Google Drive oder pCloud?
 
@@ -98,7 +127,9 @@ Voraussetzung ist Node.js ≥ 22.13 (nutzt das eingebaute `node:sqlite`).
 | Ordner/Datei | Inhalt |
 |---|---|
 | `server.js` | API, Anmeldung, Kalender-Feed |
-| `src/roster.js` | Zellen → Kalendereinträge |
+| `src/roster.js` | Zellen → Kalendereinträge, Prater-Filter |
+| `src/spielplan.js` | Spielplan-PDF → Prater-Veranstaltungen |
+| `src/team.js` | To-Dos, Fragen, Infos, Bestellwünsche |
 | `src/pdf-text.js` | Erkennung über die Textebene |
 | `src/pdf-claude.js` | KI-Erkennung |
 | `src/ics.js` | Kalender-Abo |

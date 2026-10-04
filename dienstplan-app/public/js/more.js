@@ -59,6 +59,9 @@ export function renderMore(view) {
   const roleText = { admin: 'Admin', member: 'Mitglied', viewer: 'Nur lesen' }[state.me.role];
   view.innerHTML = `
     <div class="card"><h2>👋 Hallo ${esc(state.me.name)}</h2><p class="small muted">Rolle: ${roleText}</p></div>
+    ${state.me.role === 'admin' ? `<div class="card"><h2>🛠️ Verwaltung</h2>
+      <p class="small muted">Dienstplan und Spielplan einlesen, Personen einladen, Chat-Gruppen verwalten.</p>
+      <a class="btn primary" href="#/admin">Zur Verwaltung</a></div>` : ''}
     <div class="card"><h2>📲 Im Handykalender anzeigen</h2><div id="sub"></div></div>
     <div class="card"><h2>🔔 Benachrichtigungen</h2><div id="push"></div></div>
     <div class="card"><h2>🏠 Als App installieren</h2>

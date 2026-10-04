@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePersonCell, parseVenueCell, gridToEvents, isoWeekMonday, looksLikePersonRow, sanitizeGrid } from '../src/roster.js';
+import { parsePersonCell, parseVenueCell, gridToEvents, isoWeekMonday, looksLikePersonRow, sanitizeGrid, splitByPlaces, venueEntries } from '../src/roster.js';
+import { spielplanFromPages } from '../src/spielplan.js';
+import { matchesTodo } from '../public/js/todo-search.js';
 import { itemsToGrid } from '../src/pdf-text.js';
 import { buildIcs } from '../src/ics.js';
 
@@ -35,21 +37,71 @@ test('ISO-Kalenderwoche', () => {
   assert.equal(isoWeekMonday(2027, 1), '2027-01-04');
 });
 
-test('Grid -> Kalendereinträge, Nachtdienst über Mitternacht', () => {
+test('Grid -> Kalendereinträge: Nachtdienst, nur Prater-Veranstaltungen', () => {
   const grid = sanitizeGrid({
     title: 'x',
     dates: ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11'],
     rows: [
       { label: 'Bühne', kind: 'area', cells: ['19:30 VS HOH', '', '', '', '', '', ''] },
+      { label: '3. Stock', kind: 'area', cells: ['', '19:00 P14 PRATER 20:00 Perfection · Anta Recke', '', '', '', '', ''] },
+      { label: 'Prater', kind: 'area', cells: ['', '', 'P02 CURSED · TE', '', '', '', ''] },
       { label: 'Wagner', kind: 'person', cells: ['22:00-02:00', 'F 40.2', '', '', '', '', ''] },
       { label: 'Ignoriert', kind: 'person', cells: ['10:00-12:00', '', '', '', '', '', ''] },
     ],
   });
-  const ev = gridToEvents(grid, [null, 7, null]);
-  assert.equal(ev.length, 3);
-  assert.deepEqual(ev[0], { kind: 'venue', person_id: null, title: 'VS HOH', location: 'Bühne', start: '2026-10-05T19:30', end: null, all_day: 0 });
-  assert.deepEqual(ev[1], { kind: 'shift', person_id: 7, title: 'Dienst', location: '', start: '2026-10-05T22:00', end: '2026-10-06T02:00', all_day: 0 });
-  assert.deepEqual(ev[2], { kind: 'off', person_id: 7, title: 'Frei (F 40.2)', location: '', start: '2026-10-06', end: '2026-10-07', all_day: 1 });
+  assert.deepEqual(grid.rows.map((r) => r.import), [false, false, true, false, false]);
+  const ev = gridToEvents(grid, [null, null, null, 7, null]);
+  assert.deepEqual(ev, [
+    { kind: 'venue', person_id: null, title: 'Perfection', location: 'Prater', notes: 'Anta Recke', start: '2026-10-06T20:00', end: null, all_day: 0 },
+    { kind: 'venue', person_id: null, title: 'P02 CURSED · TE', location: 'Prater', notes: '', start: '2026-10-07', end: '2026-10-08', all_day: 1 },
+    { kind: 'shift', person_id: 7, title: 'Dienst', location: '', start: '2026-10-05T22:00', end: '2026-10-06T02:00', all_day: 0 },
+    { kind: 'off', person_id: 7, title: 'Frei (F 40.2)', location: '', start: '2026-10-06', end: '2026-10-07', all_day: 1 },
+  ]);
+});
+
+test('Prater-Einträge aus Zelltext', () => {
+  assert.deepEqual(splitByPlaces('3. STOCK 19:00 P14 PRATER-FOYER 17:00 Bar').map((x) => x.place), ['3. STOCK', 'PRATER-FOYER']);
+  assert.deepEqual(venueEntries('PRATER 11-15 interne VA 18:00 Gespräch · mit Gästen 3. STOCK P14'), [
+    { start: '11:00', end: '15:00', title: 'interne VA', notes: '', location: 'Prater' },
+    { start: '18:00', end: null, title: 'Gespräch', notes: 'mit Gästen', location: 'Prater' },
+  ]);
+  assert.deepEqual(venueEntries('19:30 VS VB01 HOH'), []);
+});
+
+test('Spielplan: nur Prater-Veranstaltungen, Jahr aus der Überschrift', () => {
+  const it = (str, x, y, w = 30) => ({ str, x, y, w });
+  const page = [
+    it('Volksbühne am Rosa-Luxemburg-Platz', 20, 823, 158), it('Aktualisierter Spielplan November 2026', 219, 823, 160), it('Stand vom 01.10.2026', 487, 823, 88),
+    it('Datum', 16, 799, 20), it('Bühne', 41, 799, 20), it('3.Stock & Prater', 164, 799, 51), it('Roter Salon', 320, 799, 37), it('Grüner Salon', 447, 799, 42), it('Gastspiele / andere', 525, 800, 52),
+    it('So,', 16, 784, 9), it('01.11.', 16, 777, 17),
+    it('16:00', 41, 783, 19), it('Mata Leão', 62, 783, 37),
+    it('3. STOCK 19:00', 163, 783, 48), it('P14: endlich endlich', 213, 783, 73),
+    it('PRATER 19:00', 163, 760, 45), it('Between Worlds Kiki', 210, 760, 74), it('·', 286, 760, 2), it('Präsentiert von Mother', 163, 753, 80),
+    it('PRATER-FOYER', 525, 784, 47), it('17:00', 525, 777, 15), it('Community', 542, 777, 33), it('Bar The School of Self-', 525, 770, 60), it('Defense', 525, 763, 22),
+    it('Mo,', 16, 720, 10), it('02.11.', 16, 713, 17),
+    it('20:30', 41, 718, 19), it('SPYDERGUM', 62, 718, 48),
+    it('PRATER P02 CURSED · OMSK Social Club · TE', 163, 718, 150),
+  ];
+  const plan = spielplanFromPages([page]);
+  assert.equal(plan.month, '2026-11');
+  assert.equal(plan.title, 'Spielplan November 2026 (Stand 01.10.2026)');
+  assert.deepEqual(plan.events.map((e) => [e.date, e.start, e.location, e.title]), [
+    ['2026-11-01', '17:00', 'Prater-Foyer', 'Community Bar The School of Self-Defense'],
+    ['2026-11-01', '19:00', 'Prater', 'Between Worlds Kiki'],
+    ['2026-11-02', null, 'Prater', 'P02 CURSED · OMSK Social Club · TE'],
+  ]);
+});
+
+test('To-Do-Suche nach Wort, Person und #tag', () => {
+  const todo = { title: 'Nebelmaschine reinigen', notes: '', tags: ['licht', 'bühne'], assignees: [2], subtasks: [{ title: 'Fluid kaufen' }] };
+  const nameOf = (id) => ({ 2: 'Schröter' }[id]);
+  assert.equal(matchesTodo(todo, '', nameOf), true);
+  assert.equal(matchesTodo(todo, 'nebel', nameOf), true);
+  assert.equal(matchesTodo(todo, 'fluid', nameOf), true);
+  assert.equal(matchesTodo(todo, 'schröter', nameOf), true);
+  assert.equal(matchesTodo(todo, '#lic', nameOf), true);
+  assert.equal(matchesTodo(todo, '#ton', nameOf), false);
+  assert.equal(matchesTodo(todo, 'nebel mähler', nameOf), false);
 });
 
 test('Tabelle aus PDF-Textpositionen (wie Scanner-OCR) erkennen', () => {

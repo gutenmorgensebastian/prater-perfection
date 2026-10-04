@@ -4,11 +4,12 @@ let calendar = null;
 const VENUE_COLOR = '#64748b';
 const CUSTOM_COLOR = '#0ea5e9';
 
-const filters = () => loadPref('calendar-filters', { hidden: [], venue: true, custom: true, off: false });
+const filters = () => ({ hiddenCals: [], ...loadPref('calendar-filters', { hidden: [], venue: true, custom: true, off: false }) });
+const calendarById = (id) => state.calendars?.find((c) => c.id === id);
 
 function visible(e, f) {
   if (e.kind === 'venue') return f.venue;
-  if (e.kind === 'custom') return f.custom;
+  if (e.kind === 'custom') return e.calendar_id ? !f.hiddenCals.includes(e.calendar_id) : f.custom;
   if (e.kind === 'off' && !f.off) return false;
   return !f.hidden.includes(e.person_id);
 }
@@ -16,7 +17,7 @@ function visible(e, f) {
 function toCalendarEvent(e) {
   const p = personById(e.person_id);
   let title = e.title;
-  let color = CUSTOM_COLOR;
+  let color = calendarById(e.calendar_id)?.color || CUSTOM_COLOR;
   if (e.kind === 'venue') { title = `${e.location} · ${e.title}`; color = VENUE_COLOR; }
   if (e.kind === 'shift' || e.kind === 'off') {
     title = e.title === 'Dienst' ? `${p?.name ?? '?'}` : `${p?.name ?? '?'}: ${e.title}`;
@@ -31,20 +32,28 @@ function toCalendarEvent(e) {
 function renderChips(root) {
   const f = filters();
   const chip = (key, label, on, color) => `<span class="chip ${on ? 'on' : 'off'}" data-key="${key}" style="--c:${color}"><span class="dot"></span>${esc(label)}</span>`;
-  const people = state.people.filter((p) => p.roster_name || p.role !== 'none');
-  root.innerHTML = [
+  const people = state.people.filter((p) => p.role !== 'viewer' && (p.roster_name || p.role !== 'none'));
+  root.innerHTML = `<div class="chip-row"><span class="chip-label">Kalender</span>${[
     chip('venue', 'Prater-Veranstaltungen', f.venue, VENUE_COLOR),
     chip('custom', 'Termine', f.custom, CUSTOM_COLOR),
-    chip('off', 'Frei-Tage', f.off, '#9ca3af'),
+    ...(state.calendars || []).map((c) => chip(`k${c.id}`, c.name, !f.hiddenCals.includes(c.id), c.color)),
+    isAdmin() ? '<span class="chip" data-key="manage" title="Kalender anlegen und verwalten">⚙︎ Kalender verwalten</span>' : '',
+  ].join('')}</div>
+  <div class="chip-row"><span class="chip-label">Dienste</span>${[
     ...people.map((p) => chip(`p${p.id}`, p.name, !f.hidden.includes(p.id), p.color)),
+    chip('off', 'Frei-Tage', f.off, '#9ca3af'),
     '<span class="chip" data-key="all">Alle</span>',
     `<span class="chip" data-key="me">Nur ich</span>`,
-  ].join('');
+  ].join('')}</div>`;
   root.onclick = (ev) => {
     const key = ev.target.closest('.chip')?.dataset.key;
     if (!key) return;
     const cur = filters();
-    if (key === 'all') cur.hidden = [];
+    if (key === 'manage') return openManageCalendars();
+    if (key.startsWith('k')) {
+      const id = Number(key.slice(1));
+      cur.hiddenCals = cur.hiddenCals.includes(id) ? cur.hiddenCals.filter((x) => x !== id) : [...cur.hiddenCals, id];
+    } else if (key === 'all') cur.hidden = [];
     else if (key === 'me') cur.hidden = state.people.map((p) => p.id).filter((id) => id !== state.me.id);
     else if (key.startsWith('p')) {
       const id = Number(key.slice(1));
@@ -94,6 +103,56 @@ export function renderCalendar(view) {
 }
 
 export const refreshCalendar = () => calendar?.refetchEvents();
+export function refreshCalendarList() {
+  if ($('#chips')) renderChips($('#chips'));
+  calendar?.refetchEvents();
+}
+
+const CAL_COLORS = ['#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#6366f1'];
+
+// Admins: Kalender anlegen, umbenennen, Farbe ändern, löschen.
+function openManageCalendars() {
+  const render = (dlg) => {
+    $('#cal-list', dlg).innerHTML = (state.calendars || []).map((c) => `<li data-id="${c.id}">
+        <input type="color" data-f="color" value="${c.color}" class="shrink" style="width:42px;height:34px;padding:2px">
+        <input data-f="name" value="${esc(c.name)}" class="grow">
+        <button type="button" class="shrink danger" data-del title="Kalender mit allen Terminen löschen">🗑</button></li>`).join('')
+      || '<li class="muted small">Noch keine eigenen Kalender.</li>';
+  };
+  openModal(`
+    <h2>Kalender verwalten</h2>
+    <p class="small muted">Eigene Kalender, z. B. „Proben“, „Urlaub“ oder „Wartung“. Anlegen können nur Admins –
+      Termine eintragen können danach alle Mitarbeiter*innen.</p>
+    <ul class="list" id="cal-list"></ul>
+    <form id="cal-add" class="row" style="margin-top:.6rem">
+      <input type="color" name="color" value="${CAL_COLORS.find((c) => !(state.calendars || []).some((k) => k.color === c)) || '#8b5cf6'}" class="shrink" style="width:42px;height:38px;padding:2px">
+      <input name="name" placeholder="Neuer Kalender" maxlength="60" required>
+      <button class="primary shrink" type="submit">＋ Anlegen</button>
+    </form>
+    <div class="buttons"><button data-close>Fertig</button></div>`, (dlg) => {
+    render(dlg);
+    const reload = async () => { state.calendars = (await api('/me')).calendars; render(dlg); refreshCalendarList(); };
+    $('#cal-add', dlg).onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api('/admin/calendars', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+        e.target.name.value = '';
+        await reload();
+        e.target.color.value = CAL_COLORS.find((c) => !state.calendars.some((k) => k.color === c)) || '#8b5cf6';
+      } catch (err) { showError(err); }
+    };
+    $('#cal-list', dlg).onchange = async (e) => {
+      const li = e.target.closest('li[data-id]');
+      if (!li) return;
+      try { await api(`/admin/calendars/${li.dataset.id}`, { method: 'PATCH', body: { [e.target.dataset.f]: e.target.value } }); await reload(); } catch (err) { showError(err); }
+    };
+    $('#cal-list', dlg).onclick = async (e) => {
+      const li = e.target.closest('[data-del]')?.closest('li');
+      if (!li || !confirm('Kalender mit allen Terminen darin löschen?')) return;
+      try { await api(`/admin/calendars/${li.dataset.id}`, { method: 'DELETE' }); await reload(); } catch (err) { showError(err); }
+    };
+  });
+}
 
 function timeRange(e) {
   if (e.all_day) {
@@ -107,7 +166,7 @@ function timeRange(e) {
 
 function openEventDetails(e) {
   const p = personById(e.person_id);
-  const kindLabel = { shift: 'Dienst laut Dienstplan', off: 'Frei laut Dienstplan', venue: 'Veranstaltung laut Dienstplan', custom: 'Termin' }[e.kind];
+  const kindLabel = { shift: 'Dienst laut Dienstplan', off: 'Frei laut Dienstplan', venue: 'Veranstaltung laut Dienst- bzw. Spielplan', custom: `Kalender „${esc(calendarById(e.calendar_id)?.name || 'Termine')}“` }[e.kind];
   const mayEdit = isAdmin() || (e.kind === 'custom' && e.created_by === state.me.id && canWrite());
   openModal(`
     <h2>${esc(e.kind === 'venue' ? e.title : p ? `${p.name}: ${e.title}` : e.title)}</h2>
@@ -150,6 +209,8 @@ function openEventForm({ event, date, time } = {}) {
         <div><label>Ende</label><input type="date" name="end_date" value="${endDate}"></div>
         <div class="time"><label>Uhrzeit</label><input type="time" name="end_time" value="${endTime}"></div>
       </div>
+      ${state.calendars?.length ? `<label for="ev-cal">Kalender</label><select id="ev-cal" name="calendar_id">
+        <option value="">Termine</option>${state.calendars.map((c) => `<option value="${c.id}" ${(event ? e.calendar_id : loadPref('last-calendar', null)) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
       <label>Ort</label><input name="location" maxlength="200" value="${esc(e.location || '')}">
       <label>Notiz</label><textarea name="notes" rows="3" maxlength="2000">${esc(e.notes || '')}</textarea>
       <div class="buttons"><button type="button" data-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div>
@@ -157,6 +218,8 @@ function openEventForm({ event, date, time } = {}) {
     const form = $('#ev-form', dlg);
     const syncTimes = () => $$('.time', form).forEach((el) => { el.hidden = form.all_day.checked; });
     form.all_day.onchange = syncTimes;
+    // Ende mitziehen, damit es nicht vor dem Beginn liegt.
+    form.start_date.onchange = () => { if (!form.end_date.value || form.end_date.value < form.start_date.value) form.end_date.value = form.start_date.value; };
     syncTimes();
     form.onsubmit = async (ev) => {
       ev.preventDefault();
@@ -171,6 +234,8 @@ function openEventForm({ event, date, time } = {}) {
         body = { title: d.title, all_day: false, start: `${d.start_date}T${d.start_time}`, end: d.end_time ? `${d.end_date || d.start_date}T${d.end_time}` : null };
       }
       body.location = d.location;
+      body.calendar_id = Number(d.calendar_id) || null;
+      savePref('last-calendar', body.calendar_id);
       body.notes = d.notes;
       try {
         await api(event ? `/events/${event.id}` : '/events', { method: event ? 'PATCH' : 'POST', body });
@@ -183,7 +248,7 @@ function openEventForm({ event, date, time } = {}) {
 
 // --- Kalender-Abo für Google / Apple ------------------------------------------
 export function subscribeHtml() {
-  const prefs = loadPref('subscribe', { people: [state.me.id], venue: false, custom: true, off: false });
+  const prefs = { cals: [], ...loadPref('subscribe', { people: [state.me.id], venue: false, custom: true, off: false }) };
   const people = state.people.filter((p) => p.roster_name || p.role !== 'none');
   return `
     <p class="small muted">Wähle, was in deinem Handykalender erscheinen soll. Der Kalender aktualisiert sich danach von selbst
@@ -191,7 +256,8 @@ export function subscribeHtml() {
     <div id="sub-people" class="chips">${people.map((p) => `<label class="chip ${prefs.people.includes(p.id) ? 'on' : 'off'}" style="--c:${p.color}">
       <input type="checkbox" hidden value="${p.id}" ${prefs.people.includes(p.id) ? 'checked' : ''}><span class="dot"></span>${esc(p.name)}</label>`).join('')}</div>
     <label class="check"><input type="checkbox" id="sub-venue" ${prefs.venue ? 'checked' : ''}> Prater-Veranstaltungen (aus Dienst- &amp; Spielplan)</label>
-    <label class="check"><input type="checkbox" id="sub-custom" ${prefs.custom ? 'checked' : ''}> Gemeinsame Termine</label>
+    <label class="check"><input type="checkbox" id="sub-custom" ${prefs.custom ? 'checked' : ''}> Termine</label>
+    <div id="sub-cals">${(state.calendars || []).map((c) => `<label class="check"><input type="checkbox" value="${c.id}" ${prefs.cals.includes(c.id) ? 'checked' : ''}> Kalender „${esc(c.name)}“</label>`).join('')}</div>
     <label class="check"><input type="checkbox" id="sub-off" ${prefs.off ? 'checked' : ''}> Frei-Tage</label>
     <h3>Abonnieren</h3>
     <div class="row">
@@ -211,12 +277,14 @@ export function subscribeHtml() {
 export function bindSubscribe(root) {
   const update = () => {
     const ids = $$('#sub-people input:checked', root).map((i) => Number(i.value));
-    const prefs = { people: ids, venue: $('#sub-venue', root).checked, custom: $('#sub-custom', root).checked, off: $('#sub-off', root).checked };
+    const cals = $$('#sub-cals input:checked', root).map((i) => Number(i.value));
+    const prefs = { people: ids, cals, venue: $('#sub-venue', root).checked, custom: $('#sub-custom', root).checked, off: $('#sub-off', root).checked };
     savePref('subscribe', prefs);
     const q = new URLSearchParams();
     if (ids.length) q.set('p', ids.join(','));
     if (prefs.venue) q.set('v', '1');
     if (prefs.custom) q.set('c', '1');
+    if (cals.length) q.set('k', cals.join(','));
     if (prefs.off) q.set('off', '1');
     const https = `${state.baseUrl}/cal/${state.me.feed_token}.ics?${q}`;
     const webcal = https.replace(/^https?:/, 'webcal:');

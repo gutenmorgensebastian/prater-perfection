@@ -153,6 +153,20 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 `);
 
+// Eigene Kalender (von Admins angelegt). Termine ohne calendar_id gehören zu "Termine".
+db.exec(`
+CREATE TABLE IF NOT EXISTS calendars (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL
+);
+`);
+if (!db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'calendar_id')) {
+  db.exec('ALTER TABLE events ADD COLUMN calendar_id INTEGER REFERENCES calendars(id) ON DELETE CASCADE');
+}
+
 export const newToken = () => crypto.randomBytes(24).toString('base64url');
 
 export function getSetting(key) {

@@ -36,8 +36,9 @@ export function renderAdmin(view) {
     </div>
     <div class="card">
       <h2>👥 Personen &amp; Einladungen</h2>
-      <p class="small muted">Jede Person bekommt einen eigenen Link – einmal öffnen, schon ist sie angemeldet.
-        „Nur Dienstplan“ = steht im Plan, hat aber keinen Zugang. „Dienstplan-Name“ = wie der Name im PDF steht.</p>
+      <p class="small muted">Jede Person bekommt einen eigenen Link – antippen, fertig, kein Passwort. Danach die Seite als Kachel aufs Handy legen, dann bleibt man angemeldet.
+        <b>Admin</b> = alles inkl. Verwaltung · <b>Mitarbeiter*in</b> = alles lesen und schreiben · <b>Gast</b> = nur lesen ·
+        <b>Ohne Zugang</b> = steht nur im Dienstplan. „Dienstplan-Name“ = wie der Name im PDF steht.</p>
       <div style="overflow-x:auto"><table class="people-table" id="people"></table></div>
       <form id="person-add" class="row" style="margin-top:.6rem">
         <input name="name" placeholder="Name" required>
@@ -318,7 +319,7 @@ function openSpielplanEditor({ roster, warnings }) {
 }
 
 // --- Personen --------------------------------------------------------------------
-const ROLE_LABELS = { admin: 'Admin', member: 'Mitglied', viewer: 'Nur lesen', none: 'Nur Dienstplan' };
+const ROLE_LABELS = { admin: 'Admin', member: 'Mitarbeiter*in', viewer: 'Gast', none: 'Ohne Zugang' };
 
 async function loadPeople() {
   try {

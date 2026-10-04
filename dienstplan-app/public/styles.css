@@ -298,3 +298,7 @@ table.sp-grid td { min-width: 0; }
 table.sp-grid td:first-child { width: 2rem; text-align: center; }
 table.sp-grid input[type=time] { width: 6.5rem; }
 .info h3 .link { font-size: .85rem; font-weight: 500; flex: 0 0 auto; }
+.chip-row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.chips .chip-row + .chip-row { margin-top: .45rem; }
+.chip-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); min-width: 4.6rem; }
+#chips { display: block; }

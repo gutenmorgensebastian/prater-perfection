@@ -41,11 +41,28 @@ function personFromRequest(req) {
   return db.prepare("SELECT * FROM people WHERE token = ? AND role != 'none'").get(token) || null;
 }
 
+// Anmeldung = Einladungslink öffnen. Das Cookie hält 400 Tage und verlängert sich bei jeder Nutzung.
+const setLoginCookie = (req, res, token) => res.cookie('sid', token, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 400 * 24 * 3600 * 1000, path: '/' });
+
 app.get('/join/:token', (req, res) => {
   const person = db.prepare("SELECT * FROM people WHERE token = ? AND role != 'none'").get(req.params.token);
   if (!person) return res.status(404).send(page('Link ungültig', 'Dieser Einladungslink ist nicht (mehr) gültig. Bitte frag nach einem neuen Link.'));
-  res.cookie('sid', person.token, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 400 * 24 * 3600 * 1000, path: '/' });
-  res.redirect('/');
+  setLoginCookie(req, res, person.token);
+  // Kein Weiterleiten: Die Adresse mit dem Link bleibt stehen. Legt man die Seite jetzt auf den
+  // Home-Bildschirm, startet die Kachel über den Link – egal ob das Handy die aktuelle Adresse
+  // oder die aus dem Manifest nimmt.
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(ROOT, 'public/index.html'));
+});
+
+// Das App-Manifest wird pro Person ausgeliefert: Die Kachel auf dem Home-Bildschirm startet über den
+// persönlichen Link. So bleibt man auch auf dem iPhone angemeldet, wo die Kachel eigene Cookies hat.
+app.get('/manifest.webmanifest', (req, res) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/manifest.webmanifest'), 'utf8'));
+  const person = personFromRequest(req);
+  if (person) manifest.start_url = `/join/${person.token}?app=1`;
+  res.set('Cache-Control', 'no-store');
+  res.type('application/manifest+json').send(JSON.stringify(manifest));
 });
 
 app.post('/logout', (req, res) => {
@@ -63,6 +80,7 @@ const requireAuth = (req, res, next) => {
   if (!req.person) return res.status(401).json({ error: 'Nicht angemeldet. Bitte öffne deinen persönlichen Einladungslink.' });
   next();
 };
+const COLOR_HEX = /^#[0-9a-f]{6}$/i;
 
 // --- Dateien ---------------------------------------------------------------
 const INLINE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']);
@@ -82,12 +100,13 @@ app.get('/cal/:feed.ics', (req, res) => {
   const kinds = [];
   if (ids.length) kinds.push('shift');
   if (ids.length && req.query.off === '1') kinds.push('off');
+  const cals = String(req.query.k || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
   const from = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
   const rows = db.prepare(`SELECT e.*, p.name AS person_name FROM events e LEFT JOIN people p ON p.id = e.person_id
     WHERE e.start >= ? ORDER BY e.start`).all(from).filter((e) =>
     (kinds.includes(e.kind) && ids.includes(e.person_id))
     || (e.kind === 'venue' && req.query.v === '1')
-    || (e.kind === 'custom' && req.query.c === '1'));
+    || (e.kind === 'custom' && (e.calendar_id ? cals.includes(e.calendar_id) : req.query.c === '1')));
   const names = db.prepare('SELECT id, name FROM people').all().filter((p) => ids.includes(p.id)).map((p) => p.name);
   const calName = `Dienstplan${names.length ? ` – ${names.length > 3 ? `${names.length} Personen` : names.join(', ')}` : ''}`;
   res.type('text/calendar; charset=utf-8');
@@ -103,7 +122,9 @@ api.use(requireAuth);
 const publicPerson = (p) => ({ id: p.id, name: p.name, color: p.color, role: p.role, roster_name: p.roster_name });
 
 api.get('/me', (req, res) => {
+  setLoginCookie(req, res, req.person.token); // Anmeldung verlängern
   res.json({
+    calendars: db.prepare('SELECT * FROM calendars ORDER BY position, id').all(),
     me: { ...publicPerson(req.person), feed_token: req.person.feed_token },
     people: db.prepare('SELECT * FROM people ORDER BY name COLLATE NOCASE').all().map(publicPerson),
     channels: db.prepare('SELECT * FROM channels ORDER BY position, id').all(),
@@ -141,13 +162,15 @@ function readEventBody(body) {
   if (allDay && (!end || end === start)) {
     const d = new Date(`${start}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); end = d.toISOString().slice(0, 10);
   }
-  return { title, start, end, all_day: allDay, location: String(body.location || '').slice(0, 200), notes: String(body.notes || '').slice(0, 2000) };
+  const calId = Number(body.calendar_id) || null;
+  if (calId && !db.prepare('SELECT 1 FROM calendars WHERE id = ?').get(calId)) throw new HttpError(400, 'Kalender gibt es nicht');
+  return { title, start, end, all_day: allDay, location: String(body.location || '').slice(0, 200), notes: String(body.notes || '').slice(0, 2000), calendar_id: calId };
 }
 
 api.post('/events', requireWriter, (req, res) => {
   const e = readEventBody(req.body);
-  const r = db.prepare(`INSERT INTO events (kind, title, start, end, all_day, location, notes, created_by) VALUES ('custom', ?, ?, ?, ?, ?, ?, ?)`)
-    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, req.person.id);
+  const r = db.prepare(`INSERT INTO events (kind, title, start, end, all_day, location, notes, calendar_id, created_by) VALUES ('custom', ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, e.calendar_id, req.person.id);
   broadcast('events');
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(r.lastInsertRowid));
 });
@@ -163,8 +186,8 @@ function editableEvent(req) {
 api.patch('/events/:id', (req, res) => {
   const ev = editableEvent(req);
   const e = readEventBody({ ...ev, ...req.body });
-  db.prepare(`UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, notes = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
-    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, ev.id);
+  db.prepare(`UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, notes = ?, calendar_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
+    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, ev.kind === 'custom' ? e.calendar_id : ev.calendar_id, ev.id);
   broadcast('events');
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(ev.id));
 });
@@ -302,6 +325,36 @@ admin.delete('/people/:id', (req, res) => {
   if (id === req.person.id) throw new HttpError(400, 'Du kannst dich nicht selbst löschen');
   db.prepare('DELETE FROM people WHERE id = ?').run(id);
   broadcast('people');
+  broadcast('events');
+  res.json({ ok: true });
+});
+
+// Eigene Kalender: anlegen, umbenennen, Farbe, löschen (nur Admins). Eintragen dürfen alle außer Gästen.
+admin.post('/calendars', (req, res) => {
+  const name = String(req.body?.name || '').trim().slice(0, 60);
+  if (!name) throw new HttpError(400, 'Name fehlt');
+  const color = COLOR_HEX.test(req.body?.color) ? req.body.color : '#0ea5e9';
+  const pos = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM calendars').get().p;
+  const r = db.prepare('INSERT INTO calendars (name, color, position, created_by) VALUES (?, ?, ?, ?)').run(name, color, pos, req.person.id);
+  broadcast('calendars');
+  res.json(db.prepare('SELECT * FROM calendars WHERE id = ?').get(r.lastInsertRowid));
+});
+
+admin.patch('/calendars/:id', (req, res) => {
+  const c = db.prepare('SELECT * FROM calendars WHERE id = ?').get(intParam(req.params.id));
+  if (!c) throw new HttpError(404, 'Kalender nicht gefunden');
+  const name = String(req.body?.name ?? c.name).trim().slice(0, 60) || c.name;
+  const color = COLOR_HEX.test(req.body?.color) ? req.body.color : c.color;
+  db.prepare('UPDATE calendars SET name = ?, color = ? WHERE id = ?').run(name, color, c.id);
+  broadcast('calendars');
+  res.json(db.prepare('SELECT * FROM calendars WHERE id = ?').get(c.id));
+});
+
+admin.delete('/calendars/:id', (req, res) => {
+  const id = intParam(req.params.id);
+  db.prepare('DELETE FROM events WHERE calendar_id = ?').run(id);
+  db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
+  broadcast('calendars');
   broadcast('events');
   res.json({ ok: true });
 });

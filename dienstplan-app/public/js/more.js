@@ -1,5 +1,6 @@
 import { state, api, esc, $, setTitle, showError, toast } from './core.js';
 import { subscribeHtml, bindSubscribe } from './calendar.js';
+import { installHelpHtml, bindInstall } from './welcome.js';
 
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -56,7 +57,7 @@ async function renderPush() {
 
 export function renderMore(view) {
   setTitle('Mehr');
-  const roleText = { admin: 'Admin', member: 'Mitglied', viewer: 'Nur lesen' }[state.me.role];
+  const roleText = { admin: 'Admin', member: 'Mitarbeiter*in', viewer: 'Gast' }[state.me.role];
   view.innerHTML = `
     <div class="card"><h2>👋 Hallo ${esc(state.me.name)}</h2><p class="small muted">Rolle: ${roleText}</p></div>
     ${state.me.role === 'admin' ? `<div class="card"><h2>🛠️ Verwaltung</h2>
@@ -64,11 +65,7 @@ export function renderMore(view) {
       <a class="btn primary" href="#/admin">Zur Verwaltung</a></div>` : ''}
     <div class="card"><h2>📲 Im Handykalender anzeigen</h2><div id="sub"></div></div>
     <div class="card"><h2>🔔 Benachrichtigungen</h2><div id="push"></div></div>
-    <div class="card"><h2>🏠 Als App installieren</h2>
-      ${isStandalone() ? '<p class="small">✅ Läuft bereits als App.</p>' : `
-      <p class="small"><b>iPhone (Safari):</b> Teilen-Symbol <span aria-hidden="true">⬆️</span> → „Zum Home-Bildschirm“.<br>
-      <b>Android (Chrome):</b> Menü ⋮ → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“.</p>`}
-    </div>
+    <div class="card"><h2>🏠 Als App aufs Handy</h2><div id="install">${installHelpHtml()}</div></div>
     <div class="card"><h2>Abmelden</h2>
       <p class="small muted">Zum erneuten Anmelden brauchst du wieder deinen Einladungslink.</p>
       <form method="post" action="/logout"><button class="danger" type="submit">Abmelden</button></form>
@@ -76,4 +73,5 @@ export function renderMore(view) {
   $('#sub').innerHTML = subscribeHtml();
   bindSubscribe($('#sub'));
   renderPush();
+  bindInstall($('#install'));
 }

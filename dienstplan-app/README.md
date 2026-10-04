@@ -87,24 +87,31 @@ git pull && docker compose up -d --build
 ```
 
 ## Erste Schritte in der App
-1. **Verwaltung → Dienstplan einlesen:** PDF hochladen, Vorschau prüfen, dann auf „Veröffentlichen“.
-   - Neue Namen aus dem Plan werden automatisch als Personen angelegt, zunächst als „Nur Dienstplan“, also ohne Zugang.
-2. **Verwaltung → Personen:** Bei jeder Person die Rolle auf „Mitglied“ stellen. Dann erscheint ein Einladungslink.
+1. **Mehr → Verwaltung → Dienstplan einlesen:** PDF hochladen, Vorschau prüfen, dann auf „Veröffentlichen“.
+   - Neue Namen aus dem Plan werden automatisch als Personen angelegt, zunächst „Ohne Zugang“.
+2. **Mehr → Verwaltung → Personen:** Bei jeder Person die Rolle setzen. Dann erscheint ein Einladungslink.
    - 🔗 kopiert den Link, 📲 schickt ihn per WhatsApp.
    - Mit ♻️ wird ein Link ungültig gemacht und durch einen neuen ersetzt, z. B. wenn er in falsche Hände geraten ist.
-3. Jede Person öffnet ihren Link und kann dann:
-   - unter **Mehr → Als App installieren** die Seite auf den Home-Bildschirm legen,
-   - unter **Mehr → Im Handykalender anzeigen** den Kalender abonnieren,
-   - unter **Mehr → Benachrichtigungen** die Benachrichtigungen einschalten.
+3. **Kalender → ⚙︎ Kalender verwalten** (nur Admins): eigene Kalender wie „Proben“ oder „Urlaub“ anlegen. Termine eintragen können danach alle Mitarbeiter*innen.
 
 **Rollen:**
 
 | Rolle | Darf |
 |---|---|
-| Admin | alles |
-| Mitglied | Chat und eigene Termine |
-| Nur lesen | sieht alles, kann aber nichts schreiben |
-| Nur Dienstplan | kein Zugang, steht nur im Plan |
+| Admin | alles, inklusive Verwaltung und Kalender anlegen |
+| Mitarbeiter*in | alles lesen und schreiben: Termine, Chat, To-Dos, Fragen, Infos, Bestellwünsche |
+| Gast | alles lesen, nichts schreiben |
+| Ohne Zugang | steht nur im Dienstplan, kein Link |
+
+## Anmeldung: nur ein Link
+- Jede Person bekommt **ihren eigenen Link**. Einmal antippen, dann ist sie angemeldet. Es gibt kein Passwort und keine E-Mail-Bestätigung.
+- Beim ersten Öffnen erscheint eine kurze Anleitung, wie man die Seite als **Kachel auf den Home-Bildschirm** legt. Ab dann startet man über die Kachel.
+- **Man bleibt angemeldet.** Die Anmeldung gilt 400 Tage und verlängert sich bei jeder Nutzung. Wer die Kachel regelmäßig nutzt, muss sich also nie neu anmelden.
+- **iPhone:** Eine Kachel auf dem Home-Bildschirm hat dort eigene Cookies, getrennt von Safari. Die Kachel startet deshalb immer über den persönlichen Link. Damit das klappt:
+  - Das App-Manifest wird pro Person ausgeliefert.
+  - Der Einladungslink bleibt in der Adresszeile stehen.
+  - Sollte eine Kachel trotzdem einmal nicht angemeldet sein, kann man den Link direkt in der App einfügen.
+- Der Link ist wie ein Schlüssel: Wer ihn hat, kommt rein. Ist er in falsche Hände geraten, erzeugst du in der Verwaltung mit ♻️ einen neuen. Der alte geht dann nicht mehr.
 
 ## Kalender-Abo: gut zu wissen
 - Das Abo ist eine Einbahnstraße: Änderungen macht man in der App, der Handykalender zeigt sie an.

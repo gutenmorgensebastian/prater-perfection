@@ -1,5 +1,5 @@
 import { state, api, $, $$, loadPref } from './js/core.js';
-import { renderCalendar, refreshCalendar } from './js/calendar.js';
+import { renderCalendar, refreshCalendar, refreshCalendarList } from './js/calendar.js';
 import { renderChat, onMessage, onMessageChanged, updateBadges } from './js/chat.js';
 import { renderAdmin, renderChannels, reloadPeopleAdmin } from './js/admin.js';
 import { renderMore } from './js/more.js';
@@ -7,6 +7,7 @@ import { renderTodos, refreshTodos } from './js/todos.js';
 import { renderQuestions, refreshQuestions, refreshCounts } from './js/questions.js';
 import { renderInfos, refreshInfos } from './js/infos.js';
 import { renderOrders, refreshOrders } from './js/orders.js';
+import { maybeShowWelcome, loginHelpHtml, bindLoginHelp } from './js/welcome.js';
 
 let cleanup = null;
 
@@ -51,6 +52,7 @@ function connectLive() {
     const { id } = JSON.parse(e.data);
     document.querySelector(`.msg[data-id="${id}"]`)?.remove();
   });
+  es.addEventListener('calendars', async () => { await loadState(); refreshCalendarList(); });
   es.addEventListener('todos', () => refreshTodos());
   es.addEventListener('questions', (e) => {
     if (JSON.parse(e.data).people?.includes(state.me.id)) refreshQuestions();
@@ -70,17 +72,15 @@ async function start() {
   try {
     await loadState();
   } catch (err) {
-    $('#view').innerHTML = err.status === 401
-      ? `<div class="card center" style="margin-top:10vh"><h2>🔒 Nicht angemeldet</h2>
-          <p>Bitte öffne den persönlichen Einladungslink, den du bekommen hast.<br>
-          <span class="small muted">Tipp: Auf dem iPhone den Link in Safari öffnen, danach „Zum Home-Bildschirm“.</span></p></div>`
-      : `<p class="center">⚠️ ${err.message}</p>`;
+    $('#view').innerHTML = err.status === 401 ? loginHelpHtml() : `<p class="center">⚠️ ${err.message}</p>`;
+    if (err.status === 401) bindLoginHelp();
     return;
   }
   $('#tabbar').hidden = false;
   window.addEventListener('hashchange', route);
   if (!location.hash) location.replace('#/kalender');
   route();
+  maybeShowWelcome();
   updateBadges();
   refreshCounts();
   connectLive();

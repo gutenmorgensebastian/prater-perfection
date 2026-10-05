@@ -306,3 +306,19 @@ table.sp-grid input[type=time] { width: 6.5rem; }
 .attach-preview:empty { display: none; }
 .attach-preview img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
 .attach-preview span { overflow-wrap: anywhere; min-width: 0; }
+
+/* Rückgängig-Knopf nach dem Löschen */
+.undo-btn {
+  position: fixed; right: 16px; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px); z-index: 60;
+  width: 56px; height: 56px; padding: 0; border-radius: 50%; border: none;
+  background: var(--accent); color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  display: grid; place-items: center; animation: undo-in .2s ease-out;
+}
+.undo-btn svg { width: 48px; height: 48px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.undo-btn .undo-arrow { stroke-width: 2.2; transform-origin: 24px 24px; animation: undo-spin 1.2s linear infinite; }
+.undo-btn .undo-ring { stroke-width: 3; stroke: rgba(255,255,255,.85); stroke-dasharray: 132; stroke-dashoffset: 0;
+  transform: rotate(-90deg); transform-origin: 24px 24px; animation: undo-countdown var(--undo-ms, 5000ms) linear forwards; }
+@keyframes undo-spin { to { transform: rotate(-360deg); } }
+@keyframes undo-countdown { to { stroke-dashoffset: 132; } }
+@keyframes undo-in { from { transform: scale(.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .undo-btn .undo-arrow { animation: none; } }

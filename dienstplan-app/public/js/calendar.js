@@ -1,4 +1,4 @@
-import { state, api, esc, $, $$, openModal, personById, canWrite, isAdmin, setTitle, showError, toast, copyText, loadPref, savePref, fmtDate } from './core.js';
+import { state, api, esc, $, $$, openModal, personById, canWrite, isAdmin, setTitle, showError, toast, copyText, loadPref, savePref, fmtDate, showUndo } from './core.js';
 
 let calendar = null;
 const VENUE_COLOR = '#64748b';
@@ -181,8 +181,17 @@ function openEventDetails(e) {
     </div>`, (dlg) => {
     $('#ev-edit', dlg)?.addEventListener('click', () => openEventForm({ event: e }));
     $('#ev-del', dlg)?.addEventListener('click', async () => {
-      if (!confirm('Eintrag wirklich löschen?')) return;
-      try { await api(`/events/${e.id}`, { method: 'DELETE' }); dlg.close(); refreshCalendar(); } catch (err) { showError(err); }
+      try {
+        await api(`/events/${e.id}`, { method: 'DELETE' });
+        dlg.close();
+        refreshCalendar();
+        // 5 Sekunden lang rückgängig machen
+        showUndo(async () => {
+          await api(`/events/${e.id}/restore`, { method: 'POST' });
+          refreshCalendar();
+          toast('Wiederhergestellt');
+        });
+      } catch (err) { showError(err); }
     });
   });
 }

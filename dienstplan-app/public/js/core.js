@@ -80,3 +80,27 @@ export function loadPref(key, fallback) {
 export function savePref(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* privater Modus */ }
 }
+
+// Kleiner Knopf zum Rückgängigmachen (Pfeil dreht sich gegen den Uhrzeigersinn, Ring zeigt die Restzeit).
+let undoTimer = null;
+export function showUndo(onUndo, ms = 5000) {
+  document.querySelector('.undo-btn')?.remove();
+  clearTimeout(undoTimer);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'undo-btn';
+  btn.title = 'Löschen rückgängig machen';
+  btn.setAttribute('aria-label', 'Löschen rückgängig machen');
+  btn.style.setProperty('--undo-ms', `${ms}ms`);
+  btn.innerHTML = `<svg viewBox="0 0 48 48" aria-hidden="true">
+      <circle class="undo-ring" cx="24" cy="24" r="21"/>
+      <g class="undo-arrow"><g transform="translate(12 12)"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" /></g></g>
+    </svg>`;
+  const close = () => { clearTimeout(undoTimer); btn.remove(); };
+  btn.onclick = async () => {
+    close();
+    try { await onUndo(); } catch (err) { showError(err); }
+  };
+  document.body.append(btn);
+  undoTimer = setTimeout(close, ms);
+}

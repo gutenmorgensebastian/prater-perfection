@@ -192,9 +192,31 @@ api.patch('/events/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(ev.id));
 });
 
+// Gelöschte Einträge kurz merken, damit „Rückgängig“ sie unverändert zurückholen kann.
+const UNDO_MS = 30_000;
+const recentlyDeleted = new Map();
+
 api.delete('/events/:id', (req, res) => {
   const ev = editableEvent(req);
   db.prepare('DELETE FROM events WHERE id = ?').run(ev.id);
+  recentlyDeleted.set(ev.id, { row: ev, by: req.person.id });
+  setTimeout(() => recentlyDeleted.delete(ev.id), UNDO_MS).unref();
+  broadcast('events');
+  res.json({ ok: true, undo: true });
+});
+
+api.post('/events/:id/restore', (req, res) => {
+  const entry = recentlyDeleted.get(intParam(req.params.id));
+  if (!entry || entry.by !== req.person.id) throw new HttpError(410, 'Zu spät – der Eintrag lässt sich nicht mehr wiederherstellen.');
+  const e = entry.row;
+  try {
+    db.prepare(`INSERT INTO events (id, kind, person_id, roster_id, calendar_id, title, location, notes, start, end, all_day, created_by, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(e.id, e.kind, e.person_id, e.roster_id, e.calendar_id, e.title, e.location, e.notes, e.start, e.end, e.all_day, e.created_by, e.updated_at);
+  } catch {
+    throw new HttpError(409, 'Der Eintrag lässt sich nicht wiederherstellen (Plan oder Person gibt es nicht mehr).');
+  }
+  recentlyDeleted.delete(e.id);
   broadcast('events');
   res.json({ ok: true });
 });

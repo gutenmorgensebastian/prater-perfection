@@ -302,3 +302,7 @@ table.sp-grid input[type=time] { width: 6.5rem; }
 .chips .chip-row + .chip-row { margin-top: .45rem; }
 .chip-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); min-width: 4.6rem; }
 #chips { display: block; }
+.attach-preview { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--muted); margin-top: .25rem; }
+.attach-preview:empty { display: none; }
+.attach-preview img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
+.attach-preview span { overflow-wrap: anywhere; min-width: 0; }

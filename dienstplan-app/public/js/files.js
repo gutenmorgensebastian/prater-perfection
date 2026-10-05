@@ -1,5 +1,6 @@
 // Anhänge (Fotos, PDFs …) an To-Dos, Infos und Bestellwünschen.
 import { api, esc, showError, fmtSize } from './core.js';
+import { shrinkImage } from './image.js';
 
 const icon = (mime) => (mime?.startsWith('image/') ? '🖼️' : mime === 'application/pdf' ? '📄' : '📎');
 
@@ -9,7 +10,8 @@ export function attachmentsHtml(list, editable) {
       <span class="muted small">${fmtSize(a.size)}</span>
       ${editable ? `<button type="button" class="link" data-att-del="${a.id}" title="Anhang entfernen">✕</button>` : ''}
     </span>`).join('');
-  const add = editable ? '<label class="btn att-add">📎 Foto oder Datei<input type="file" data-att-add hidden></label>' : '';
+  const add = editable ? `<label class="btn att-add">📷 Foto<input type="file" data-att-add accept="image/*" capture="environment" hidden></label>
+    <label class="btn att-add">📎 Datei<input type="file" data-att-add hidden></label>` : '';
   return `<div class="atts">${items}${add}</div>`;
 }
 
@@ -17,9 +19,11 @@ export function attachmentsHtml(list, editable) {
 export function bindAttachments(root, table, itemId, onChange) {
   root.addEventListener('change', async (e) => {
     if (!e.target.matches('[data-att-add]') || !e.target.files[0]) return;
+    const label = e.target.closest('label');
+    label.classList.add('busy');
+    const file = await shrinkImage(e.target.files[0]); // Fotos auf Full HD verkleinern
     const form = new FormData();
-    form.append('file', e.target.files[0]);
-    e.target.closest('label').classList.add('busy');
+    form.append('file', file, file.name);
     try { await api(`/${table}/${itemId}/attachments`, { method: 'POST', form }); onChange(); } catch (err) { showError(err); }
   });
   root.addEventListener('click', async (e) => {

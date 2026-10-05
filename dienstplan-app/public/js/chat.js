@@ -1,4 +1,5 @@
 import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, isAdmin, fmtDateTime, fmtSize, loadPref, savePref } from './core.js';
+import { shrinkImage } from './image.js';
 
 let current = null; // { channelId, tab }
 const unread = loadPref('unread', {});
@@ -114,8 +115,9 @@ async function loadCurrent() {
           ${msgs.length ? msgs.map(messageHtml).join('') : '<p class="muted center small" id="empty">Noch keine Nachrichten. Schreib die erste!</p>'}
         </div>
         ${canWrite() ? `<form class="composer" id="composer">
-          <label class="btn shrink" title="Datei anhängen (PDF, Bild …)" style="margin:0">📎<input type="file" name="file" hidden></label>
-          <div style="flex:1"><textarea name="body" rows="1" placeholder="Nachricht oder Link …"></textarea><div class="attach-name" id="attach-name"></div></div>
+          <label class="btn shrink" title="Foto aufnehmen" style="margin:0">📷<input type="file" id="camera-input" accept="image/*" capture="environment" hidden></label>
+          <label class="btn shrink" title="Datei oder Foto anhängen" style="margin:0">📎<input type="file" id="file-input" hidden></label>
+          <div style="flex:1"><textarea name="body" rows="1" placeholder="Nachricht oder Link …"></textarea><div class="attach-preview" id="attach-name"></div></div>
           <button class="primary shrink" type="submit">Senden</button>
         </form>` : '<p class="muted small center">Du hast nur Lesezugriff.</p>'}
       </div>`;
@@ -168,16 +170,41 @@ function bindComposer() {
       form.requestSubmit();
     }
   });
-  form.file.onchange = () => { $('#attach-name').textContent = form.file.files[0] ? `📎 ${form.file.files[0].name}` : ''; };
+  // Anhang: Fotos werden vorher auf Full HD verkleinert.
+  let pending = null;
+  let previewUrl = null;
+  const showPending = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = pending?.type.startsWith('image/') ? URL.createObjectURL(pending) : null;
+    $('#attach-name').innerHTML = pending
+      ? `${previewUrl ? `<img src="${previewUrl}" alt="">` : '📎'} <span>${esc(pending.name)} · ${fmtSize(pending.size)}</span>
+         <button type="button" class="link" id="attach-clear" title="Anhang entfernen">✕</button>`
+      : '';
+    $('#attach-clear')?.addEventListener('click', () => { pending = null; showPending(); });
+  };
+  const pick = async (input) => {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+    $('#attach-name').textContent = file.type.startsWith('image/') ? '📷 Foto wird verkleinert …' : '';
+    pending = await shrinkImage(file);
+    showPending();
+  };
+  $('#camera-input').onchange = (e) => pick(e.target);
+  $('#file-input').onchange = (e) => pick(e.target);
   form.onsubmit = async (e) => {
     e.preventDefault();
-    if (!ta.value.trim() && !form.file.files[0]) return;
+    if (!ta.value.trim() && !pending) return;
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true;
     try {
-      const m = await api(`/channels/${current.channelId}/messages`, { method: 'POST', form: new FormData(form) });
+      const data = new FormData();
+      data.append('body', ta.value);
+      if (pending) data.append('file', pending, pending.name);
+      const m = await api(`/channels/${current.channelId}/messages`, { method: 'POST', form: data });
       form.reset();
-      $('#attach-name').textContent = '';
+      pending = null;
+      showPending();
       autosize();
       appendMessage(m, true);
     } catch (err) { showError(err); } finally { btn.disabled = false; }

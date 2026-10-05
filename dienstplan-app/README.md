@@ -9,7 +9,8 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
   - Kommt eine geänderte Fassung derselben Woche, lädst du sie einfach neu hoch. Die alte wird ersetzt.
 - **Chat.**
   - Mehrere Gruppen, jede ist ein eigener Tab.
-  - PDFs, Bilder und Links lassen sich anhängen.
+  - PDFs, Bilder und Links lassen sich anhängen. Mit 📷 öffnet sich auf dem Handy direkt die Kamera.
+  - Fotos werden vor dem Hochladen automatisch auf höchstens Full HD (1920 × 1080) verkleinert und als JPEG (Qualität 85 %) gespeichert. Aus 5–7 MB werden meist 200–600 KB. Das gilt auch für Fotos bei To-Dos, Infos und Bestellwünschen.
   - Pro Gruppe gibt es eine **Ablage** mit allen Dateien, Links und angepinnten Nachrichten.
 - **PDFs per E-Mail.** Einfach an die Adresse der Website weiterleiten, die PDFs werden automatisch eingelesen. Alternativ in der Verwaltung hochladen. Die Website erkennt selbst, ob es ein Dienstplan, Spielplan oder Probenplan ist.
 - **Probenplan-Import.** Endprobenpläne werden eingelesen: Jede Zeile mit Uhrzeit wird ein Termin im Kalender „Proben“, mit dem Ort (Prater Bühne, Probebühne Prater).

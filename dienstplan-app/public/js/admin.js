@@ -4,34 +4,33 @@ import { parsePersonCell, venueEntries, addDays } from '/shared/roster.js';
 export function renderAdmin(view) {
   setTitle('Verwaltung');
   view.innerHTML = `
-    <div class="card" id="roster-card">
-      <h2>📥 Dienstplan einlesen</h2>
-      <p class="small muted">PDF hochladen → Vorschau prüfen → veröffentlichen. Danach stehen alle Dienste automatisch im Kalender.
-        Kommt eine geänderte Fassung derselben Woche, einfach neu hochladen – die alte wird ersetzt.</p>
-      <form id="roster-upload" class="row">
+    <div class="card" id="import-card">
+      <h2>📥 PDF einlesen</h2>
+      <p class="small muted">Dienstplan, Spielplan oder Probenplan hochladen – die Art wird automatisch erkannt. Danach Vorschau prüfen und übernehmen.
+        Eine neue Fassung desselben Plans ersetzt die alte. Noch einfacher: das PDF per E-Mail weiterleiten (siehe unten).</p>
+      <form id="import-upload" class="row">
         <input type="file" name="file" accept="application/pdf,.pdf" required>
-        <select name="method" class="shrink" style="width:auto">
-          <option value="auto">Erkennung: automatisch</option>
+        <select name="type" class="shrink" style="width:auto">
+          <option value="auto">Art: automatisch</option>
+          <option value="dienstplan">Dienstplan</option>
+          <option value="spielplan">Spielplan (Prater-Veranstaltungen)</option>
+          <option value="probenplan">Probenplan (→ Kalender „Proben“)</option>
+        </select>
+        <button class="primary shrink" type="submit">Hochladen</button>
+      </form>
+      <details class="small" style="margin-top:.4rem"><summary>Dienstplan-Erkennung</summary>
+        <select name="method" form="import-upload" style="width:auto;margin-top:.3rem">
+          <option value="auto">automatisch</option>
           <option value="claude" ${state.claude ? '' : 'disabled'}>KI (Claude)${state.claude ? '' : ' – kein API-Schlüssel'}</option>
           <option value="text">Textebene des PDFs</option>
           <option value="manual">Selbst eintragen</option>
         </select>
-        <button class="primary shrink" type="submit">Hochladen</button>
-      </form>
-      <div id="roster-editor"></div>
+      </details>
+      <div id="import-editor"></div>
     </div>
+    <div id="mail-card"></div>
     <div class="card">
-      <h2>🎭 Spielplan einlesen (Prater-Veranstaltungen)</h2>
-      <p class="small muted">Monats-Spielplan der Volksbühne als PDF hochladen. Übernommen werden nur Einträge mit „PRATER“ bzw. „PRATER-FOYER“
-        (inkl. TE, EP, Bauproben). Ein aktualisierter Spielplan desselben Monats ersetzt den alten.</p>
-      <form id="spielplan-upload" class="row">
-        <input type="file" name="file" accept="application/pdf,.pdf" required>
-        <button class="primary shrink" type="submit">Hochladen</button>
-      </form>
-      <div id="spielplan-editor"></div>
-    </div>
-    <div class="card">
-      <h2>🗂️ Bisherige Dienst- &amp; Spielpläne</h2>
+      <h2>🗂️ Bisherige Pläne</h2>
       <ul class="list" id="roster-list"><li class="muted small">Lädt …</li></ul>
     </div>
     <div class="card">
@@ -54,9 +53,9 @@ export function renderAdmin(view) {
         <button class="shrink" type="submit">＋ Gruppe</button>
       </form>
     </div>`;
-  bindRosterUpload();
-  bindSpielplanUpload();
+  bindImportUpload();
   loadRosterList();
+  renderMailCard();
   loadPeople();
   renderChannels();
   $('#person-add').onsubmit = async (e) => {
@@ -77,16 +76,21 @@ export function renderAdmin(view) {
 }
 
 // --- Dienstplan ----------------------------------------------------------------
-function bindRosterUpload() {
-  $('#roster-upload').onsubmit = async (e) => {
+function openImport(res) {
+  if (res.type === 'dienstplan') openEditor(res);
+  else openPlanEditor(res);
+}
+
+function bindImportUpload() {
+  $('#import-upload').onsubmit = async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('[type=submit]');
     btn.disabled = true;
     btn.textContent = 'Wird gelesen …';
     try {
-      const res = await api('/admin/rosters', { method: 'POST', form: new FormData(e.target) });
+      const res = await api('/admin/import', { method: 'POST', form: new FormData(e.target) });
       e.target.reset();
-      openEditor(res);
+      openImport(res);
       loadRosterList();
     } catch (err) { showError(err); } finally { btn.disabled = false; btn.textContent = 'Hochladen'; }
   };
@@ -97,16 +101,13 @@ async function loadRosterList() {
     const rosters = await api('/admin/rosters');
     const status = { draft: '✏️ Entwurf', published: '✅ veröffentlicht', replaced: '↩️ ersetzt' };
     $('#roster-list').innerHTML = rosters.length ? rosters.map((r) => `<li>
-      <div class="grow">${r.method === 'spielplan' ? '🎭' : '📥'} ${esc(r.title || 'Dienstplan')} <span class="muted small">· ${r.method === 'spielplan' ? `Monat ${r.week_start.slice(5, 7)}/${r.week_start.slice(0, 4)}` : `Woche ab ${r.week_start ? fmtDate(r.week_start) : '?'}`} · ${status[r.status]}</span></div>
+      <div class="grow">${{ spielplan: '🎭', probenplan: '🎬' }[r.method] || '📅'} ${esc(r.title || 'Dienstplan')} <span class="muted small">· ${r.method === 'spielplan' ? `Monat ${r.week_start.slice(5, 7)}/${r.week_start.slice(0, 4)}` : `${r.method === 'probenplan' ? 'ab' : 'Woche ab'} ${r.week_start ? fmtDate(r.week_start) : '?'}`} · ${status[r.status]}</span></div>
       ${r.attachment_id ? `<a class="btn shrink" href="/api/files/${r.attachment_id}" target="_blank">PDF</a>` : ''}
       <button class="shrink" data-edit="${r.id}">Bearbeiten</button></li>`).join('') : '<li class="muted small">Noch keiner hochgeladen.</li>';
     $('#roster-list').onclick = async (e) => {
       const id = e.target.dataset.edit;
       if (!id) return;
-      try {
-        const res = await api(`/admin/rosters/${id}`);
-        if (res.roster.method === 'spielplan') openSpielplanEditor(res); else openEditor(res);
-      } catch (err) { showError(err); }
+      try { openImport(await api(`/admin/rosters/${id}`)); } catch (err) { showError(err); }
     };
   } catch (err) { showError(err); }
 }
@@ -130,7 +131,7 @@ function cellHint(kind, text, row) {
 function openEditor({ roster, assignments, warnings }) {
   const grid = structuredClone(roster.grid);
   const assign = [...assignments];
-  const root = $('#roster-editor');
+  const root = $('#import-editor');
   const lastChannel = state.channels.find((c) => /dienstplan/i.test(c.name)) || state.channels[0];
   const methodText = { claude: 'per KI erkannt', text: 'aus der Textebene des PDFs erkannt', manual: 'zum Selbst-Eintragen' }[roster.method];
 
@@ -241,32 +242,20 @@ function openEditor({ roster, assignments, warnings }) {
   root.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// --- Spielplan ------------------------------------------------------------------
-function bindSpielplanUpload() {
-  $('#spielplan-upload').onsubmit = async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('[type=submit]');
-    btn.disabled = true;
-    btn.textContent = 'Wird gelesen …';
-    try {
-      const res = await api('/admin/spielplan', { method: 'POST', form: new FormData(e.target) });
-      e.target.reset();
-      openSpielplanEditor(res);
-      loadRosterList();
-    } catch (err) { showError(err); } finally { btn.disabled = false; btn.textContent = 'Hochladen'; }
-  };
-}
-
-function openSpielplanEditor({ roster, warnings }) {
+// --- Spielplan & Probenplan (Vorschau-Liste) -------------------------------------
+function openPlanEditor({ roster, warnings }) {
   const plan = structuredClone(roster.grid);
   plan.events.forEach((ev) => { if (ev.include === undefined) ev.include = true; });
-  const root = $('#spielplan-editor');
+  const root = $('#import-editor');
+  const isProben = roster.method === 'probenplan';
   const channel = state.channels.find((c) => /dienstplan/i.test(c.name)) || state.channels[0];
   const day = (d) => new Date(`${d}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
   const render = () => {
     const count = plan.events.filter((ev) => ev.include).length;
     root.innerHTML = `
-      <h3>Vorschau: ${esc(plan.title)} – ${count} von ${plan.events.length} Prater-Veranstaltungen ausgewählt</h3>
+      <h3>Vorschau ${isProben ? 'Probenplan' : 'Spielplan'}: ${esc(plan.title)} – ${count} von ${plan.events.length} ${isProben ? 'Terminen' : 'Prater-Veranstaltungen'} ausgewählt</h3>
+      ${isProben ? `<div class="row" style="margin-bottom:.5rem"><label for="sp-cal" class="shrink" style="margin:0">Eintragen in Kalender</label>
+        <select id="sp-cal" class="shrink" style="width:auto">${(state.calendars || []).map((c) => `<option value="${c.id}" ${c.id === plan.calendar_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>` : ''}
       ${warnings?.length ? `<div class="warnings">${warnings.map(esc).join('<br>')}</div>` : ''}
       <p class="small muted">Häkchen weg = wird nicht übernommen. Felder kannst du direkt korrigieren.
         ${roster.attachment_id ? `<a href="/api/files/${roster.attachment_id}" target="_blank">Original-PDF öffnen</a>` : ''}</p>
@@ -298,6 +287,7 @@ function openSpielplanEditor({ roster, warnings }) {
     plan.events[Number(tr.dataset.i)][f] = e.target.value || (f === 'start' || f === 'end' ? null : '');
   };
   root.onchange = (e) => {
+    if (e.target.id === 'sp-cal') { plan.calendar_id = Number(e.target.value); return; }
     if (e.target.dataset.f !== 'include') return;
     plan.events[Number(e.target.closest('tr').dataset.i)].include = e.target.checked;
     render();
@@ -307,15 +297,74 @@ function openSpielplanEditor({ roster, warnings }) {
     if (e.target.id !== 'sp-publish') return;
     e.target.disabled = true;
     try {
-      const res = await api(`/admin/spielplan/${roster.id}/publish`, {
+      const res = await api(`/admin/rosters/${roster.id}/publish`, {
         method: 'POST', body: { plan, announce_channel_id: $('#sp-announce').checked ? Number($('#sp-channel').value) : null },
       });
-      toast(`${res.replaced ? 'Aktualisiert' : 'Übernommen'}: ${res.events} Prater-Veranstaltungen`);
+      toast(`${res.replaced ? 'Aktualisiert' : 'Übernommen'}: ${res.events} ${isProben ? 'Termine' : 'Prater-Veranstaltungen'}`);
       root.innerHTML = '';
       loadRosterList();
     } catch (err) { showError(err); e.target.disabled = false; }
   };
   root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// --- E-Mail-Eingang ----------------------------------------------------------------
+export async function renderMailCard() {
+  const root = $('#mail-card');
+  if (!root) return;
+  let st;
+  try { st = await api('/admin/mail'); } catch (err) { showError(err); return; }
+  const when = (iso) => (iso ? new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '–');
+  root.innerHTML = `<div class="card">
+    <h2>📧 E-Mail-Eingang</h2>
+    ${st.configured ? `
+      <p>PDFs einfach weiterleiten an:</p>
+      <div class="row"><code class="url" style="flex:1">${esc(st.address)}</code><button class="shrink" id="mail-copy">Kopieren</button></div>
+      <p class="small muted">Spielpläne und Probenpläne kommen sofort in den Kalender, Dienstpläne ${st.dienstplanAuto ? 'ebenfalls sofort' : 'als Entwurf zum Prüfen (du bekommst eine Benachrichtigung)'}.
+        Das Postfach wird alle ${st.intervalMin} Minuten abgerufen. Zuletzt: ${when(st.lastCheck)}.
+        ${st.lastError ? `<br><span style="color:var(--danger)">⚠️ Fehler beim Abrufen: ${esc(st.lastError)}</span>` : ''}</p>
+      <button id="mail-check">Jetzt abrufen</button>`
+    : '<p class="small">Noch kein Postfach eingerichtet. Lege bei deinem E-Mail-Anbieter eine eigene Adresse an (z. B. <i>dienstplan@deinname.de</i>) und trage hier die Zugangsdaten ein.</p>'}
+    <form id="mail-form" style="margin-top:.6rem">
+      <label class="check"><input type="checkbox" name="dienstplanAuto" ${st.dienstplanAuto ? 'checked' : ''}> Dienstpläne aus E-Mails sofort veröffentlichen (ohne Prüfen)</label>
+      <label for="mail-allowed">Erlaubte Absender (leer = alle)</label>
+      <input id="mail-allowed" name="allowed" value="${esc(st.allowed)}" placeholder="z. B. dispo@volksbuehne.berlin, @volksbuehne.berlin">
+      ${st.fromEnv ? '<p class="small muted">Die Zugangsdaten stehen in der Server-Konfiguration (.env).</p>' : `
+      <details ${st.configured ? '' : 'open'}><summary class="small">Zugangsdaten des Postfachs (IMAP)</summary>
+        <div class="row"><div><label for="mail-host">Server</label><input id="mail-host" name="host" value="${esc(st.host)}" placeholder="imap.example.de"></div>
+          <div class="shrink" style="width:6rem"><label for="mail-port">Port</label><input id="mail-port" name="port" value="${st.port}"></div></div>
+        <label for="mail-user">Benutzername</label><input id="mail-user" name="user" value="${esc(st.user)}" autocomplete="off">
+        <label for="mail-pass">Passwort ${st.configured ? '(leer lassen = unverändert)' : ''}</label><input id="mail-pass" name="password" type="password" autocomplete="new-password">
+        <label for="mail-address">Adresse, an die weitergeleitet wird</label><input id="mail-address" name="address" value="${esc(st.address)}" placeholder="dienstplan@deinname.de">
+      </details>`}
+      <div class="buttons"><button class="primary" type="submit">Speichern${st.fromEnv ? '' : ' &amp; testen'}</button></div>
+    </form>
+    ${st.log.length ? `<h3>Zuletzt eingegangen</h3><ul class="list">${st.log.slice(0, 8).map((l) => `<li><div class="grow">${esc(l.result)}
+      <div class="muted small">${when(l.at)} · ${esc(l.from || '?')} · ${esc(l.subject || '')}</div></div>
+      ${l.roster_id ? `<button class="shrink" data-edit="${l.roster_id}">Ansehen</button>` : ''}</li>`).join('')}</ul>` : ''}
+  </div>`;
+  $('#mail-copy', root)?.addEventListener('click', () => copyText(st.address));
+  $('#mail-check', root)?.addEventListener('click', async (e) => {
+    e.target.disabled = true; e.target.textContent = 'Wird abgerufen …';
+    try { await api('/admin/mail/check', { method: 'POST' }); loadRosterList(); } catch (err) { showError(err); }
+    renderMailCard();
+  });
+  $('#mail-form', root).onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    body.dienstplanAuto = e.target.dienstplanAuto.checked;
+    try {
+      await api('/admin/mail', { method: 'PATCH', body });
+      toast('Gespeichert');
+      if (!st.fromEnv && body.host) await api('/admin/mail/check', { method: 'POST' });
+      renderMailCard();
+    } catch (err) { showError(err); }
+  };
+  root.onclick = async (e) => {
+    const id = e.target.dataset.edit;
+    if (!id) return;
+    try { openImport(await api(`/admin/rosters/${id}`)); $('#import-editor').scrollIntoView({ behavior: 'smooth' }); } catch (err) { showError(err); }
+  };
 }
 
 // --- Personen --------------------------------------------------------------------

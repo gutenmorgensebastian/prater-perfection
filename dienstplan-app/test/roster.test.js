@@ -140,3 +140,32 @@ test('ICS-Feed', () => {
   assert.match(ics, /SUMMARY:VS A YEAR\\, W\/O SUMMER/);
   assert.ok(ics.split('\r\n').every((l) => Buffer.byteLength(l) <= 75));
 });
+
+test('Probenplan: ein Termin pro Zeile mit Uhrzeit, Ort aus der Spalte, Fußnote', async () => {
+  const { probenplanFromPages, entriesFromLines } = await import('../src/probenplan.js');
+  assert.deepEqual(entriesFromLines(['11:00- 13:00 Endprobe', 'ohne Ton', '13:00 dazu Bel']), [
+    { start: '11:00', end: '13:00', title: 'Endprobe ohne Ton' },
+    { start: '13:00', end: null, title: 'dazu Bel' },
+  ]);
+  const it = (str, x, y, w = 30) => ({ str, x, y, w });
+  const page = [
+    it('Endproben P01 Perfection', 57, 797, 125), it('Stand: 03.09.2026', 412, 786, 84),
+    it('Prater', 101, 759, 26), it('Bühne', 130, 759, 28), it('Probebühne', 384, 759, 53), it('Prater', 439, 759, 26),
+    it('Do.', 59, 746, 14), it('17.09.', 59, 736, 25),
+    it('08:00', 101, 746, 23), it('-', 124, 746, 3), it('15:45', 127, 746, 23), it('Einrichten', 153, 746, 44),
+    it('16:00', 101, 726, 23), it('-', 124, 726, 3), it('18:00 Soundcheck', 127, 726, 79),
+    it('10:00', 384, 748, 18), it('-', 402, 748, 2), it('1', 404, 748, 4), it('5', 408, 748, 4), it(':', 412, 748, 2), it('45', 414, 748, 8), it('Probe', 424, 748, 19),
+    it('Fr.', 59, 703, 12), it('02.10.', 59, 693, 25),
+    it('20:00', 101, 703, 23), it('Uraufführung', 130, 703, 60), it('Anschl. Premierenparty', 101, 693, 90),
+    it('Vor TE: 07.09.', 57, 640, 60), it('von 08-16', 120, 640, 40),
+  ];
+  const plan = probenplanFromPages([page]);
+  assert.equal(plan.key, 'Endproben P01 Perfection');
+  assert.deepEqual(plan.events.map((e) => [e.date, e.start, e.end, e.location, e.title]), [
+    ['2026-09-07', '08:00', '16:00', 'Prater', 'Vor TE'],
+    ['2026-09-17', '08:00', '15:45', 'Prater Bühne', 'Einrichten'],
+    ['2026-09-17', '10:00', '15:45', 'Probebühne Prater', 'Probe'],
+    ['2026-09-17', '16:00', '18:00', 'Prater Bühne', 'Soundcheck'],
+    ['2026-10-02', '20:00', null, 'Prater Bühne', 'Uraufführung Anschl. Premierenparty'],
+  ]);
+});

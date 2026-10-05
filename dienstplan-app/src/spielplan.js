@@ -1,30 +1,16 @@
 // Liest aus dem Monats-Spielplan der Volksbühne alle Veranstaltungen im Prater
 // (Einträge, die mit "PRATER" oder "PRATER-FOYER" beginnen – meist in der Spalte "3.Stock & Prater").
-import { pdfPages } from './pdf-text.js';
+import { pdfPages, textLines } from './pdf-text.js';
 import { venueEntries } from './roster.js';
 
 const MONTHS = ['januar', 'februar', 'märz', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'dezember'];
 const DAY_RE = /^(\d{1,2})\.(\d{1,2})\.?$/;
 
-// Text einer Zelle: Zeilen von oben nach unten, innerhalb einer Zeile von links nach rechts.
-// Stücke ohne Abstand werden ohne Leerzeichen verbunden ("Ph" "ạ" "m" -> "Phạm"),
-// ein Trennstrich am Zeilenende verbindet mit der nächsten Zeile ("Self-" "Defense").
+// Text einer Zelle: alle Zeilen hintereinander; ein Trennstrich am Zeilenende verbindet mit der
+// nächsten Zeile ("Self-" "Defense").
 function cellText(items) {
-  const lines = [];
-  for (const it of [...items].sort((a, b) => b.y - a.y || a.x - b.x)) {
-    const line = lines.find((l) => Math.abs(l.y - it.y) < 2.5);
-    if (line) line.items.push(it); else lines.push({ y: it.y, items: [it] });
-  }
   let text = '';
-  for (const line of lines.sort((a, b) => b.y - a.y)) {
-    let s = '';
-    let prevEnd = null;
-    for (const it of line.items.sort((a, b) => a.x - b.x)) {
-      s += prevEnd !== null && it.x - prevEnd > 0.8 ? ` ${it.str}` : it.str;
-      prevEnd = it.x + it.w;
-    }
-    text += !text || /-$/.test(text) ? s : ` ${s}`;
-  }
+  for (const line of textLines(items)) text += !text || /-$/.test(text) ? line : ` ${line}`;
   return text.replace(/\s+/g, ' ').trim();
 }
 

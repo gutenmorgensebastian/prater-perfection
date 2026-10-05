@@ -1,7 +1,7 @@
 import { state, api, $, $$, loadPref } from './js/core.js';
 import { renderCalendar, refreshCalendar, refreshCalendarList } from './js/calendar.js';
 import { renderChat, onMessage, onMessageChanged, updateBadges } from './js/chat.js';
-import { renderAdmin, renderChannels, reloadPeopleAdmin } from './js/admin.js';
+import { renderAdmin, renderChannels, reloadPeopleAdmin, renderMailCard } from './js/admin.js';
 import { renderMore } from './js/more.js';
 import { renderTodos, refreshTodos } from './js/todos.js';
 import { renderQuestions, refreshQuestions, refreshCounts } from './js/questions.js';
@@ -53,6 +53,7 @@ function connectLive() {
     document.querySelector(`.msg[data-id="${id}"]`)?.remove();
   });
   es.addEventListener('calendars', async () => { await loadState(); refreshCalendarList(); });
+  es.addEventListener('mail', () => { if (location.hash.startsWith('#/admin')) renderMailCard(); });
   es.addEventListener('todos', () => refreshTodos());
   es.addEventListener('questions', (e) => {
     if (JSON.parse(e.data).people?.includes(state.me.id)) refreshQuestions();

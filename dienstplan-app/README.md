@@ -11,6 +11,8 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
   - Mehrere Gruppen, jede ist ein eigener Tab.
   - PDFs, Bilder und Links lassen sich anhängen.
   - Pro Gruppe gibt es eine **Ablage** mit allen Dateien, Links und angepinnten Nachrichten.
+- **PDFs per E-Mail.** Einfach an die Adresse der Website weiterleiten, die PDFs werden automatisch eingelesen. Alternativ in der Verwaltung hochladen. Die Website erkennt selbst, ob es ein Dienstplan, Spielplan oder Probenplan ist.
+- **Probenplan-Import.** Endprobenpläne werden eingelesen: Jede Zeile mit Uhrzeit wird ein Termin im Kalender „Proben“, mit dem Ort (Prater Bühne, Probebühne Prater).
 - **Spielplan-Import.** Der Monats-Spielplan der Volksbühne (PDF) wird eingelesen. Alle Prater-Veranstaltungen landen im Kalender, inklusive Prater-Foyer, TE, EP und Bauproben.
 - **To-Dos.**
   - Aufgaben mit Unteraufgaben, einer oder mehreren zuständigen Personen und Tags.
@@ -52,6 +54,29 @@ Der Monats-Spielplan („Aktualisierter Spielplan November 2026“) kommt als PD
 - In der Vorschau kannst du einzelne Einträge abwählen oder korrigieren.
 - Ein aktualisierter Spielplan desselben Monats ersetzt den alten.
 - Steht eine Veranstaltung schon aus dem Dienstplan im Kalender (gleiche Anfangszeit), wird sie nicht doppelt eingetragen.
+
+## Probenplan-Erkennung
+
+Probenpläne wie „Endproben P01 Perfection“ kommen als PDF aus Word und haben echten Text. So werden sie gelesen:
+- Jede Zeile mit Uhrzeit wird ein Termin im Kalender **„Proben“**. Der Kalender wird beim ersten Mal automatisch angelegt.
+- Der Ort kommt aus der Spaltenüberschrift (z. B. „Prater Bühne“, „Probebühne Prater“).
+- Zeilen ohne Uhrzeit gehören zum Termin davor.
+- Fußnoten wie „Vor TE: 07.09. von 08-16“ werden ebenfalls übernommen.
+- Das Jahr kommt aus „Stand: …“.
+- Eine neue Fassung desselben Plans (gleiche Überschrift) ersetzt die alte.
+
+## E-Mail-Eingang
+
+Die Website bekommt ein eigenes Postfach, z. B. `dienstplan@deinname.de`. Wer einen Plan als PDF bekommt, leitet die Mail dorthin weiter. Noch bequemer ist eine Weiterleitungsregel im eigenen Postfach. Alle paar Minuten schaut die Website nach neuen Mails:
+- **Spielplan und Probenplan** kommen sofort in den Kalender. Im Chat erscheint eine Meldung mit dem PDF.
+- **Dienstplan** wird als **Entwurf** angelegt, weil er ein Scan ist und Lesefehler haben kann. Admins bekommen eine Benachrichtigung und veröffentlichen ihn nach kurzem Prüfen. Wer das nicht will, setzt in der Verwaltung das Häkchen „Dienstpläne sofort veröffentlichen“.
+- **Erlaubte Absender:** Optional lassen sich nur bestimmte Adressen oder Domains zulassen, z. B. `@volksbuehne.berlin`.
+- Unter „Zuletzt eingegangen“ siehst du, was mit jeder Mail passiert ist.
+
+**Einrichten:**
+1. Beim E-Mail-Anbieter eine neue Adresse anlegen. Bei vielen Domain-Paketen ist das inklusive. Es geht auch ein kostenloses Postfach, das IMAP kann, z. B. GMX, Web.de oder Gmail mit App-Passwort.
+2. In der Verwaltung unter „E-Mail-Eingang“ Server, Benutzername und Passwort eintragen, dann auf „Speichern & testen“.
+   - Alternativ in die `.env` schreiben, siehe `MAIL_…` in `.env.example`.
 
 ## Warum nicht OneDrive, Google Drive oder pCloud?
 
@@ -137,6 +162,9 @@ Voraussetzung ist Node.js ≥ 22.13 (nutzt das eingebaute `node:sqlite`).
 | `src/roster.js` | Zellen → Kalendereinträge, Prater-Filter |
 | `src/spielplan.js` | Spielplan-PDF → Prater-Veranstaltungen |
 | `src/team.js` | To-Dos, Fragen, Infos, Bestellwünsche |
+| `src/probenplan.js` | Probenplan-PDF → Termine |
+| `src/imports.js` | PDF-Art erkennen, Entwurf anlegen, veröffentlichen |
+| `src/mailin.js` | E-Mail-Eingang (IMAP) |
 | `src/pdf-text.js` | Erkennung über die Textebene |
 | `src/pdf-claude.js` | KI-Erkennung |
 | `src/ics.js` | Kalender-Abo |

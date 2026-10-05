@@ -22,6 +22,25 @@ export async function pdfPages(buffer, maxPages = 10) {
 
 export const pdfTextItems = async (buffer) => (await pdfPages(buffer, 1))[0] || [];
 
+// Fasst Textstücke zu Zeilen zusammen (von oben nach unten). Stücke ohne Abstand werden ohne
+// Leerzeichen verbunden – Word zerlegt manche Wörter in einzelne Buchstaben ("1" "5" ":" "45").
+export function textLines(items) {
+  const lines = [];
+  for (const it of [...items].sort((a, b) => b.y - a.y || a.x - b.x)) {
+    const line = lines.find((l) => Math.abs(l.y - it.y) < 2.5);
+    if (line) line.items.push(it); else lines.push({ y: it.y, items: [it] });
+  }
+  return lines.sort((a, b) => b.y - a.y).map((line) => {
+    let s = '';
+    let prevEnd = null;
+    for (const it of line.items.sort((a, b) => a.x - b.x)) {
+      s += prevEnd !== null && it.x - prevEnd > 0.8 ? ` ${it.str}` : it.str;
+      prevEnd = it.x + it.w;
+    }
+    return s.replace(/\s+/g, ' ').trim();
+  });
+}
+
 // Kern der Erkennung, getrennt von pdf.js, damit er testbar ist.
 // items: [{ str, x, y, w }] in PDF-Koordinaten (y wächst nach oben).
 export function itemsToGrid(items) {

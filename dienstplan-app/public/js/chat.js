@@ -46,7 +46,7 @@ function messageHtml(m) {
   const own = m.person_id === state.me.id;
   const mayDelete = own || isAdmin();
   return `<div class="msg ${own ? 'own' : ''}" data-id="${m.id}">
-    <div class="meta"><b style="--c:${m.person_color || 'inherit'}">${esc(m.person_name || 'Gelöscht')}</b><span>${fmtDateTime(m.created_at)}</span>
+    <div class="meta"><b style="--c:${m.person_color || 'inherit'}">${esc(m.person_name || (m.person_id ? 'Gelöscht' : '📧 Automatisch'))}</b><span>${fmtDateTime(m.created_at)}</span>
       ${m.pinned ? '<span class="pin" title="Angepinnt">📌</span>' : ''}
       <span class="actions">${canWrite() ? `<button data-act="pin" title="${m.pinned ? 'Lösen' : 'Anpinnen'}">📌</button>` : ''}${mayDelete ? '<button data-act="del" title="Löschen">🗑</button>' : ''}</span></div>
     ${m.body ? `<div class="body">${linkify(m.body)}</div>` : ''}

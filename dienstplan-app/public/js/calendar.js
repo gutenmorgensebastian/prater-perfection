@@ -1,4 +1,5 @@
 import { state, api, esc, $, $$, openModal, personById, canWrite, isAdmin, setTitle, showError, toast, copyText, loadPref, savePref, fmtDate, deleteWithUndo } from './core.js';
+import { timePickerHtml, bindTimePickers } from './timepicker.js';
 
 let calendar = null;
 const VENUE_COLOR = '#64748b';
@@ -230,12 +231,12 @@ function openEventForm({ event, date, time } = {}) {
       <label>Titel</label><input name="title" required maxlength="200" value="${esc(e.title || '')}">
       <label class="check"><input type="checkbox" name="all_day" ${allDay ? 'checked' : ''}> Ganztägig</label>
       <div class="row">
-        <div><label>Beginn</label><input type="date" name="start_date" required value="${startDate}"></div>
-        <div class="time"><label>Uhrzeit</label><input type="time" name="start_time" value="${startTime}"></div>
+        <div class="date"><label>Beginn</label><input type="date" name="start_date" required value="${startDate}"></div>
+        <div class="time"><label>Uhrzeit</label>${timePickerHtml({ name: 'start_time', value: startTime, label: 'Beginn' })}</div>
       </div>
       <div class="row">
-        <div><label>Ende</label><input type="date" name="end_date" value="${endDate}"></div>
-        <div class="time"><label>Uhrzeit</label><input type="time" name="end_time" value="${endTime}"></div>
+        <div class="date"><label>Ende</label><input type="date" name="end_date" value="${endDate}"></div>
+        <div class="time"><label>Uhrzeit</label>${timePickerHtml({ name: 'end_time', value: endTime, label: 'Ende' })}</div>
       </div>
       ${state.calendars?.length && (!event || e.kind === 'custom') ? `<label for="ev-cal">Kalender</label><select id="ev-cal" name="calendar_id">
         <option value="">Termine</option>${state.calendars.map((c) => `<option value="${c.id}" ${(event ? e.calendar_id : loadPref('last-calendar', null)) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
@@ -244,6 +245,7 @@ function openEventForm({ event, date, time } = {}) {
       <div class="buttons"><button type="button" data-close>Abbrechen</button><button class="primary" type="submit">Speichern</button></div>
     </form>`, (dlg) => {
     const form = $('#ev-form', dlg);
+    bindTimePickers(form);
     const syncTimes = () => $$('.time', form).forEach((el) => { el.hidden = form.all_day.checked; });
     form.all_day.onchange = syncTimes;
     // Ende mitziehen, damit es nicht vor dem Beginn liegt.

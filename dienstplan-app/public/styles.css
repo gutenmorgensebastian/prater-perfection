@@ -334,3 +334,13 @@ table.sp-grid input[type=time] { width: 6.5rem; }
 .ev-notes { white-space: pre-wrap; background: var(--surface-2, rgba(127,127,127,.08)); border-radius: 8px; padding: .5rem .6rem; }
 .plan-diff { color: #b45309; margin-top: -.3rem; }
 @media (prefers-color-scheme: dark) { .plan-diff { color: #fbbf24; } }
+
+/* Uhrzeit-Auswahl: Stunde : Minuten (00/15/30/45 oder individuell) */
+.tp { display: inline-flex; align-items: center; gap: .25rem; flex-wrap: nowrap; }
+.tp > select, .tp > input { flex: 0 0 auto; width: auto; }
+.tp .tp-h { width: 4.4rem; }
+.tp .tp-x { width: 4.2rem; }
+.tp .tp-m { width: 5.6rem; }
+.row > .time { flex: 0 0 auto; } /* Datum und Uhrzeit: lieber umbrechen als quetschen */
+.row > .date { min-width: 9.5rem; }
+.tp-sep { font-weight: 600; }

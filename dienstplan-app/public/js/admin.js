@@ -1,5 +1,6 @@
 import { state, api, esc, $, setTitle, showError, toast, copyText, fmtDate, openModal, deleteWithUndo } from './core.js';
 import { parsePersonCell, venueEntries, addDays } from '/shared/roster.js';
+import { timePickerHtml, bindTimePickers } from './timepicker.js';
 
 export function renderAdmin(view) {
   setTitle('Verwaltung');
@@ -265,8 +266,8 @@ function openPlanEditor({ roster, warnings }) {
         <tbody>${plan.events.map((ev, i) => `<tr data-i="${i}" style="${ev.include ? '' : 'opacity:.45'}">
           <td><input type="checkbox" data-f="include" ${ev.include ? 'checked' : ''} aria-label="Übernehmen"></td>
           <td style="white-space:nowrap">${day(ev.date)}</td>
-          <td><input type="time" data-f="start" value="${ev.start || ''}"></td>
-          <td><input type="time" data-f="end" value="${ev.end || ''}"></td>
+          <td>${timePickerHtml({ value: ev.start || '', attrs: 'data-f="start"', label: 'Beginn' })}</td>
+          <td>${timePickerHtml({ value: ev.end || '', attrs: 'data-f="end"', label: 'Ende' })}</td>
           <td><input data-f="location" value="${esc(ev.location)}" style="min-width:7rem"></td>
           <td><textarea data-f="title" rows="2" style="min-width:12rem">${esc(ev.title)}</textarea></td>
           <td><textarea data-f="notes" rows="2" style="min-width:12rem">${esc(ev.notes || '')}</textarea></td>
@@ -281,6 +282,7 @@ function openPlanEditor({ roster, warnings }) {
       </div>`;
   };
   render();
+  bindTimePickers(root);
   root.oninput = (e) => {
     const tr = e.target.closest('tr[data-i]');
     const f = e.target.dataset.f;

@@ -5,6 +5,7 @@ Kalender · Dienstplan · Chat · To-Dos · Fragen · Infos · Bestellen – fü
 Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (Android und iPhone).
 
 - **Gemeinsamer Kalender.** Wer einen Einladungslink bekommt, sieht den Kalender sofort, ohne Passwort und ohne App-Store.
+- **Uhrzeiten wählen:** Stunde plus Minuten 00, 15, 30 oder 45. Mit „individuell …“ lässt sich jede Minute eintragen. Das gilt für Termine und für die Vorschau beim Einlesen von Spiel- und Probenplänen.
 - **Eingelesene Termine bearbeiten.** Dienste, Prater-Veranstaltungen und Proben lassen sich nachträglich ändern, z. B. wenn ein Dienst länger ging, oder mit einer Notiz versehen. 📝 im Kalender zeigt eine Notiz, ✏️ eine geänderte Zeit. Im Termin steht dann, was laut Plan galt, und „↩︎ Wie im Plan“ setzt alles zurück.
   - Admins dürfen alles bearbeiten, Mitarbeiter*innen ihre eigenen Dienste sowie Veranstaltungen und Proben. Gäste dürfen nichts bearbeiten.
   - Kommt eine neue Fassung desselben Plans, bleiben die Änderungen erhalten. Ausnahme: Der neue Plan ändert genau diesen Wert, dann gilt der Plan. Notizen bleiben immer.

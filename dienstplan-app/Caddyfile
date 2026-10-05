@@ -1,0 +1,5 @@
+# Caddy besorgt automatisch ein HTTPS-Zertifikat für die Domain.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy app:3000
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1f2937">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pratomat">
+  <title>Pratomat</title>
+  <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/vendor/fullcalendar.js" defer></script>
+  <script src="/vendor/fullcalendar-de.js" defer></script>
+  <script src="/vendor/sortable.js" defer></script>
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="page-title">Pratomat</h1>
+    <div id="topbar-actions"></div>
+  </header>
+  <main id="view"><p class="muted center">Lädt …</p></main>
+  <nav class="tabbar" id="tabbar" hidden>
+    <a href="#/kalender" data-tab="kalender"><span class="ico">📅</span>Kalender</a>
+    <a href="#/chat" data-tab="chat"><span class="ico">💬</span>Chat<span class="badge" id="chat-badge" hidden></span></a>
+    <a href="#/todos" data-tab="todos"><span class="ico">✅</span>To-Dos</a>
+    <a href="#/fragen" data-tab="fragen"><span class="ico">❓</span>Fragen<span class="badge" id="q-badge" hidden></span></a>
+    <a href="#/infos" data-tab="infos"><span class="ico">📌</span>Infos</a>
+    <a href="#/produktionen" data-tab="produktionen"><span class="ico">🎬</span>Produktionen</a>
+    <a href="#/bestellen" data-tab="bestellen"><span class="ico">🛒</span>Bestellen</a>
+    <a href="#/mehr" data-tab="mehr"><span class="ico">⚙️</span>Mehr</a>
+  </nav>
+  <dialog id="modal"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

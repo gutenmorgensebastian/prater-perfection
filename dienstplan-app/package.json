@@ -1,0 +1,28 @@
+{
+  "name": "pratomat",
+  "version": "1.0.0",
+  "description": "Pratomat – Kalender, Dienstplan, Chat und mehr fürs Technik-Team im Prater",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "admin-link": "node scripts/admin-link.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "express": "^5.2.1",
+    "fullcalendar": "^6.1.21",
+    "imapflow": "^2.2.5",
+    "mailparser": "^3.9.35",
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.4.299",
+    "sortablejs": "^1.15.7",
+    "web-push": "^3.6.7"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
+}

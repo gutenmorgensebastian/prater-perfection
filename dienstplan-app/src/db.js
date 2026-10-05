@@ -166,6 +166,10 @@ CREATE TABLE IF NOT EXISTS calendars (
 if (!db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'calendar_id')) {
   db.exec('ALTER TABLE events ADD COLUMN calendar_id INTEGER REFERENCES calendars(id) ON DELETE CASCADE');
 }
+// Eingelesene Termine lassen sich bearbeiten; "original" merkt sich die Werte laut Plan (JSON), NULL = unverändert.
+if (!db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'original')) {
+  db.exec('ALTER TABLE events ADD COLUMN original TEXT');
+}
 
 // Vertrauliche Infos (z. B. Zugangscodes): nur für ausgewählte Personen sichtbar, Admins sehen immer alles.
 if (!db.prepare('PRAGMA table_info(infos)').all().some((c) => c.name === 'restricted')) {

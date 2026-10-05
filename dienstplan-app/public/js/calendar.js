@@ -23,6 +23,8 @@ function toCalendarEvent(e) {
     title = e.title === 'Dienst' ? `${p?.name ?? '?'}` : `${p?.name ?? '?'}: ${e.title}`;
     color = p?.color || '#888';
   }
+  if (e.notes) title += ' 📝';
+  if (changedFields(e).some((f) => f !== 'notes')) title += ' ✏️';
   return {
     id: String(e.id), title, start: e.start, end: e.end || undefined, allDay: Boolean(e.all_day),
     backgroundColor: color, borderColor: color, classNames: [`ev-${e.kind}`], extendedProps: { raw: e },
@@ -164,22 +166,46 @@ function timeRange(e) {
   return `${fmtDate(e.start)}, ${e.start.slice(11)}${end ? ` – ${end} Uhr` : ' Uhr'}`;
 }
 
+// Wer darf was? (wie auf dem Server)
+const mayDeleteEvent = (e) => isAdmin() || (canWrite() && e.kind === 'custom' && !e.roster_id && e.created_by === state.me.id);
+function mayEditEvent(e) {
+  if (isAdmin()) return true;
+  if (!canWrite()) return false;
+  if (e.kind === 'custom' && !e.roster_id) return e.created_by === state.me.id;
+  if (e.kind === 'shift' || e.kind === 'off') return e.person_id === state.me.id;
+  return Boolean(e.roster_id);
+}
+// Felder, die von Hand gegenüber dem eingelesenen Plan geändert wurden.
+function changedFields(e) {
+  if (!e.original) return [];
+  const o = JSON.parse(e.original);
+  return ['title', 'start', 'end', 'all_day', 'location', 'notes'].filter((f) => (o[f] ?? null) !== (e[f] ?? null));
+}
+
 function openEventDetails(e) {
   const p = personById(e.person_id);
-  const kindLabel = { shift: 'Dienst laut Dienstplan', off: 'Frei laut Dienstplan', venue: 'Veranstaltung laut Dienst- bzw. Spielplan', custom: `Kalender „${esc(calendarById(e.calendar_id)?.name || 'Termine')}“` }[e.kind];
-  const mayEdit = isAdmin() || (e.kind === 'custom' && e.created_by === state.me.id && canWrite());
+  const kindLabel = { shift: 'Dienst laut Dienstplan', off: 'Frei laut Dienstplan', venue: 'Veranstaltung laut Dienst- bzw. Spielplan', custom: `Kalender „${esc(calendarById(e.calendar_id)?.name || 'Termine')}“${e.roster_id ? ' · aus dem Probenplan' : ''}` }[e.kind];
+  const changed = changedFields(e);
+  const o = changed.length ? JSON.parse(e.original) : null;
+  const planInfo = o && changed.some((f) => f !== 'notes')
+    ? `<p class="small plan-diff">✏️ Geändert – laut Plan: ${esc(changed.includes('title') ? `${o.title}, ` : '')}${esc(timeRange(o))}${changed.includes('location') && o.location ? `, ${esc(o.location)}` : ''}</p>` : '';
   openModal(`
     <h2>${esc(e.kind === 'venue' ? e.title : p ? `${p.name}: ${e.title}` : e.title)}</h2>
     <p class="muted small">${kindLabel}</p>
     <p>🕒 ${esc(timeRange(e))}</p>
+    ${planInfo}
     ${e.location ? `<p>📍 ${esc(e.location)}</p>` : ''}
-    ${e.notes ? `<p style="white-space:pre-wrap">${esc(e.notes)}</p>` : ''}
+    ${e.notes ? `<p class="ev-notes">📝 ${esc(e.notes)}</p>` : ''}
     <div class="buttons">
-      ${mayEdit ? '<button class="danger" id="ev-del">Löschen</button>' : ''}
-      ${mayEdit && e.kind === 'custom' ? '<button id="ev-edit">Bearbeiten</button>' : ''}
+      ${mayDeleteEvent(e) ? '<button class="danger" id="ev-del">Löschen</button>' : ''}
+      ${mayEditEvent(e) && changed.length ? '<button id="ev-reset" title="Alle Änderungen verwerfen">↩︎ Wie im Plan</button>' : ''}
+      ${mayEditEvent(e) ? `<button id="ev-edit">${e.roster_id ? 'Bearbeiten / Notiz' : 'Bearbeiten'}</button>` : ''}
       <button class="primary" data-close>Schließen</button>
     </div>`, (dlg) => {
     $('#ev-edit', dlg)?.addEventListener('click', () => openEventForm({ event: e }));
+    $('#ev-reset', dlg)?.addEventListener('click', async () => {
+      try { await api(`/events/${e.id}/reset`, { method: 'POST' }); dlg.close(); refreshCalendar(); toast('Wieder wie im Plan'); } catch (err) { showError(err); }
+    });
     $('#ev-del', dlg)?.addEventListener('click', async () => {
       try {
         await deleteWithUndo(`/events/${e.id}`, refreshCalendar, () => { dlg.close(); refreshCalendar(); });
@@ -198,7 +224,8 @@ function openEventForm({ event, date, time } = {}) {
   const startTime = e.all_day ? '' : (e.start?.slice(11, 16) || time || '');
   const endTime = e.all_day ? '' : (e.end?.slice(11, 16) || '');
   openModal(`
-    <h2>${event ? 'Termin bearbeiten' : 'Neuer Termin'}</h2>
+    <h2>${event ? (e.kind === 'shift' || e.kind === 'off' ? 'Dienst bearbeiten' : 'Termin bearbeiten') : 'Neuer Termin'}</h2>
+    ${e.roster_id ? '<p class="small muted">Eingelesen aus einem Plan. Deine Änderungen bleiben, auch wenn eine neue Fassung des Plans kommt – außer der Plan ändert genau diesen Wert. Notizen bleiben immer.</p>' : ''}
     <form id="ev-form">
       <label>Titel</label><input name="title" required maxlength="200" value="${esc(e.title || '')}">
       <label class="check"><input type="checkbox" name="all_day" ${allDay ? 'checked' : ''}> Ganztägig</label>
@@ -210,7 +237,7 @@ function openEventForm({ event, date, time } = {}) {
         <div><label>Ende</label><input type="date" name="end_date" value="${endDate}"></div>
         <div class="time"><label>Uhrzeit</label><input type="time" name="end_time" value="${endTime}"></div>
       </div>
-      ${state.calendars?.length ? `<label for="ev-cal">Kalender</label><select id="ev-cal" name="calendar_id">
+      ${state.calendars?.length && (!event || e.kind === 'custom') ? `<label for="ev-cal">Kalender</label><select id="ev-cal" name="calendar_id">
         <option value="">Termine</option>${state.calendars.map((c) => `<option value="${c.id}" ${(event ? e.calendar_id : loadPref('last-calendar', null)) === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
       <label>Ort</label><input name="location" maxlength="200" value="${esc(e.location || '')}">
       <label>Notiz</label><textarea name="notes" rows="3" maxlength="2000">${esc(e.notes || '')}</textarea>
@@ -235,8 +262,10 @@ function openEventForm({ event, date, time } = {}) {
         body = { title: d.title, all_day: false, start: `${d.start_date}T${d.start_time}`, end: d.end_time ? `${d.end_date || d.start_date}T${d.end_time}` : null };
       }
       body.location = d.location;
-      body.calendar_id = Number(d.calendar_id) || null;
-      savePref('last-calendar', body.calendar_id);
+      if ('calendar_id' in d) {
+        body.calendar_id = Number(d.calendar_id) || null;
+        savePref('last-calendar', body.calendar_id);
+      }
       body.notes = d.notes;
       try {
         await api(event ? `/events/${event.id}` : '/events', { method: event ? 'PATCH' : 'POST', body });

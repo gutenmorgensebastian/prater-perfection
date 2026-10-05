@@ -330,3 +330,7 @@ table.sp-grid input[type=time] { width: 6.5rem; }
 @keyframes undo-countdown { to { stroke-dashoffset: 132; } }
 @keyframes undo-in { from { transform: scale(.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .undo-btn .undo-arrow { animation: none; } }
+
+.ev-notes { white-space: pre-wrap; background: var(--surface-2, rgba(127,127,127,.08)); border-radius: 8px; padding: .5rem .6rem; }
+.plan-diff { color: #b45309; margin-top: -.3rem; }
+@media (prefers-color-scheme: dark) { .plan-diff { color: #fbbf24; } }

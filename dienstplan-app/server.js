@@ -10,6 +10,7 @@ import { createDraft, publishDraft, getRoster, typeOf, suggestAssignments } from
 import { MESSAGE_SQL, getMessage, postMessage } from './src/messages.js';
 import { mailStatus, saveMailSettings, checkMailbox, startMailPolling } from './src/mailin.js';
 import { snapshot, restore, personSpecs } from './src/undo.js';
+import { PLAN_FIELDS } from './src/edits.js';
 import { buildIcs } from './src/ics.js';
 import { liveStream, broadcast, saveSubscription, removeSubscription, vapidPublicKey } from './src/notify.js';
 
@@ -176,25 +177,53 @@ api.post('/events', requireWriter, (req, res) => {
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(r.lastInsertRowid));
 });
 
-function editableEvent(req) {
+const getEvent = (req) => {
   const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(intParam(req.params.id));
   if (!ev) throw new HttpError(404, 'Termin nicht gefunden');
-  const own = ev.kind === 'custom' && ev.created_by === req.person.id && req.person.role !== 'viewer';
-  if (!own && req.person.role !== 'admin') throw new HttpError(403, 'Diesen Termin darfst du nicht ändern');
   return ev;
+};
+// Löschen: Admins alles, sonst nur selbst angelegte Termine.
+function deletableEvent(req) {
+  const ev = getEvent(req);
+  const own = ev.kind === 'custom' && !ev.roster_id && ev.created_by === req.person.id && req.person.role !== 'viewer';
+  if (!own && req.person.role !== 'admin') throw new HttpError(403, 'Diesen Termin darfst du nicht löschen');
+  return ev;
+}
+// Bearbeiten: zusätzlich eigene Dienste (z. B. „ging länger“) und eingelesene Veranstaltungen und Proben (Notizen).
+function mayEditEvent(ev, person) {
+  if (person.role === 'admin') return true;
+  if (person.role === 'viewer') return false;
+  if (ev.kind === 'custom' && !ev.roster_id) return ev.created_by === person.id;
+  if (ev.kind === 'shift' || ev.kind === 'off') return ev.person_id === person.id;
+  return Boolean(ev.roster_id); // Veranstaltungen aus Dienst-/Spielplan, Termine aus dem Probenplan
 }
 
 api.patch('/events/:id', (req, res) => {
-  const ev = editableEvent(req);
+  const ev = getEvent(req);
+  if (!mayEditEvent(ev, req.person)) throw new HttpError(403, 'Diesen Termin darfst du nicht ändern');
   const e = readEventBody({ ...ev, ...req.body });
-  db.prepare(`UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, notes = ?, calendar_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
-    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, ev.kind === 'custom' ? e.calendar_id : ev.calendar_id, ev.id);
+  // Beim ersten Ändern eines eingelesenen Termins die Planwerte merken (für „zurücksetzen“ und neue Planfassungen).
+  const original = ev.original ?? (ev.roster_id ? JSON.stringify(Object.fromEntries(PLAN_FIELDS.map((f) => [f, ev[f]]))) : null);
+  db.prepare(`UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, notes = ?, calendar_id = ?, original = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
+    .run(e.title, e.start, e.end, e.all_day, e.location, e.notes, ev.kind === 'custom' ? e.calendar_id : ev.calendar_id, original, ev.id);
+  broadcast('events');
+  res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(ev.id));
+});
+
+// Eingelesenen Termin wieder auf die Werte laut Plan setzen.
+api.post('/events/:id/reset', (req, res) => {
+  const ev = getEvent(req);
+  if (!mayEditEvent(ev, req.person)) throw new HttpError(403, 'Diesen Termin darfst du nicht ändern');
+  if (!ev.original) return res.json(ev);
+  const o = JSON.parse(ev.original);
+  db.prepare(`UPDATE events SET ${PLAN_FIELDS.map((f) => `${f} = ?`).join(', ')}, original = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
+    .run(...PLAN_FIELDS.map((f) => o[f]), ev.id);
   broadcast('events');
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(ev.id));
 });
 
 api.delete('/events/:id', (req, res) => {
-  const ev = editableEvent(req);
+  const ev = deletableEvent(req);
   const undo = snapshot(req.person.id, [{ table: 'events', where: 'id = ?', params: [ev.id] }]);
   db.prepare('DELETE FROM events WHERE id = ?').run(ev.id);
   broadcast('events');

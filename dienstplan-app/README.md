@@ -5,6 +5,9 @@ Kalender · Dienstplan · Chat · To-Dos · Fragen · Infos · Bestellen – fü
 Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (Android und iPhone).
 
 - **Gemeinsamer Kalender.** Wer einen Einladungslink bekommt, sieht den Kalender sofort, ohne Passwort und ohne App-Store.
+- **Eingelesene Termine bearbeiten.** Dienste, Prater-Veranstaltungen und Proben lassen sich nachträglich ändern, z. B. wenn ein Dienst länger ging, oder mit einer Notiz versehen. 📝 im Kalender zeigt eine Notiz, ✏️ eine geänderte Zeit. Im Termin steht dann, was laut Plan galt, und „↩︎ Wie im Plan“ setzt alles zurück.
+  - Admins dürfen alles bearbeiten, Mitarbeiter*innen ihre eigenen Dienste sowie Veranstaltungen und Proben. Gäste dürfen nichts bearbeiten.
+  - Kommt eine neue Fassung desselben Plans, bleiben die Änderungen erhalten. Ausnahme: Der neue Plan ändert genau diesen Wert, dann gilt der Plan. Notizen bleiben immer.
 - **Löschen mit Rückgängig.** Gelöscht wird überall ohne Rückfrage, egal ob Termin, Kalender, Nachricht, Gruppe, To-Do, Unteraufgabe, Anhang, Frage, Info, Bestellwunsch oder Person. Danach erscheint 10 Sekunden lang ein ↺-Knopf. Antippen holt alles unverändert zurück, auch was mitgelöscht wurde (z. B. Unteraufgaben, Antworten, Termine im Kalender, Nachrichten in der Gruppe, Dienste und Zuordnungen einer Person). Rückgängig machen kann nur, wer gelöscht hat.
 - **Abo im Handykalender.** Der Kalender lässt sich in Google Kalender, Apple Kalender oder Outlook abonnieren. Jede Person wählt selbst, wessen Dienste dort erscheinen.
 - **Dienstplan-Import.** PDF hochladen, die Vorschau prüfen und veröffentlichen. Dann stehen alle Dienste automatisch im Kalender, jeweils der Person zugeordnet.

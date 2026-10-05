@@ -6,6 +6,7 @@ import { postMessage } from './messages.js';
 import { gridToEvents, sanitizeGrid, venueEvent, parsePersonCell } from './roster.js';
 import { pdfPages, itemsToGrid } from './pdf-text.js';
 import { ocrPdfItems, ocrAvailable } from './pdf-ocr.js';
+import { PLAN_FIELDS, sameSlot, mergeEdit } from './edits.js';
 import { parseRosterPdfClaude, claudeAvailable } from './pdf-claude.js';
 import { spielplanFromPages } from './spielplan.js';
 import { probenplanFromPages } from './probenplan.js';
@@ -155,16 +156,38 @@ function insertEvent(e, rosterId, personId) {
 
 // Ältere veröffentlichte Fassungen ersetzen ("Änderungen vorbehalten", "aktualisierter Spielplan").
 const DIENSTPLAN_METHODS = ['claude', 'text', 'ocr', 'manual'];
+// Gibt zurück, ob ersetzt wurde, und die von Hand bearbeiteten Termine der alten Fassungen.
 function replacePrevious(roster, sameVersion) {
   const family = DIENSTPLAN_METHODS.includes(roster.method) ? DIENSTPLAN_METHODS : [roster.method];
   const previous = db.prepare(`SELECT * FROM rosters WHERE status = 'published' AND id != ? AND method IN (${family.map(() => '?').join(',')})`)
     .all(roster.id, ...family).map(rosterOut).filter(sameVersion);
+  const ids = [...previous.map((p) => p.id), roster.id];
+  const edited = db.prepare(`SELECT * FROM events WHERE original IS NOT NULL AND roster_id IN (${ids.map(() => '?').join(',')})`).all(...ids);
   for (const p of previous) {
     db.prepare('DELETE FROM events WHERE roster_id = ?').run(p.id);
     db.prepare("UPDATE rosters SET status = 'replaced' WHERE id = ?").run(p.id);
   }
   db.prepare('DELETE FROM events WHERE roster_id = ?').run(roster.id);
-  return previous.length > 0 || roster.status === 'published';
+  return { replaced: previous.length > 0 || roster.status === 'published', edited };
+}
+
+// Änderungen von Hand (längerer Dienst, Notizen …) auf die neu eingelesenen Termine übertragen.
+function carryOverEdits(edited, rosterId) {
+  if (!edited.length) return 0;
+  const fresh = db.prepare('SELECT * FROM events WHERE roster_id = ?').all(rosterId);
+  const used = new Set();
+  let kept = 0;
+  for (const old of edited) {
+    const target = fresh.find((e) => !used.has(e.id) && sameSlot(old, e));
+    if (!target) continue;
+    used.add(target.id);
+    const { fields, original } = mergeEdit(old, target);
+    if (!original) continue;
+    db.prepare(`UPDATE events SET ${PLAN_FIELDS.map((f) => `${f} = ?`).join(', ')}, original = ? WHERE id = ?`)
+      .run(...PLAN_FIELDS.map((f) => fields[f]), original, target.id);
+    kept++;
+  }
+  return kept;
 }
 
 export const typeOf = (roster) => (['spielplan', 'probenplan'].includes(roster.method) ? roster.method : 'dienstplan');
@@ -196,9 +219,10 @@ export function publishDienstplan(roster, gridInput, assignments, person, announ
       const id = Number(a);
       return Number.isInteger(id) && db.prepare('SELECT 1 FROM people WHERE id = ?').get(id) ? id : null;
     });
-    const rep = replacePrevious(roster, (p) => p.week_start === grid.dates[0]);
+    const { replaced: rep, edited } = replacePrevious(roster, (p) => p.week_start === grid.dates[0]);
     let n = 0;
     for (const e of gridToEvents(grid, personIds)) n += insertEvent(e, roster.id, person?.id);
+    carryOverEdits(edited, roster.id);
     db.prepare("UPDATE rosters SET grid = ?, title = ?, week_start = ?, status = 'published', published_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(grid), grid.title, grid.dates[0], roster.id);
     return { count: n, replaced: rep };
@@ -224,9 +248,10 @@ export function publishSpielplan(roster, input, person, announceChannelId) {
   if (!/^\d{4}-\d{2}$/.test(month)) throw new ImportError(400, 'Monat fehlt');
   const plan = { type: 'spielplan', title: String(input.title || '').slice(0, 200), month, events: sanitizeEvents(input.events) };
   const { count, replaced } = transaction(() => {
-    const rep = replacePrevious(roster, (p) => p.week_start === `${month}-01`);
+    const { replaced: rep, edited } = replacePrevious(roster, (p) => p.week_start === `${month}-01`);
     let n = 0;
     for (const e of plan.events.filter((x) => x.include)) n += insertEvent(venueEvent(e.date, e), roster.id, person?.id);
+    carryOverEdits(edited, roster.id);
     db.prepare("UPDATE rosters SET grid = ?, title = ?, week_start = ?, status = 'published', published_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(plan), plan.title, `${month}-01`, roster.id);
     return { count: n, replaced: rep };
@@ -242,12 +267,13 @@ export function publishProbenplan(roster, input, person, announceChannelId) {
   if (!plan.events.length) throw new ImportError(400, 'Keine Termine ausgewählt');
   const { count, replaced } = transaction(() => {
     // Neue Fassung desselben Plans (gleiche Überschrift) ersetzt die alte.
-    const rep = replacePrevious(roster, (p) => p.grid.key && p.grid.key === plan.key);
+    const { replaced: rep, edited } = replacePrevious(roster, (p) => p.grid.key && p.grid.key === plan.key);
     let n = 0;
     for (const e of plan.events.filter((x) => x.include)) {
       const ev = venueEvent(e.date, e);
       n += insertEvent({ ...ev, kind: 'custom', calendar_id: calendar.id }, roster.id, person?.id);
     }
+    carryOverEdits(edited, roster.id);
     db.prepare("UPDATE rosters SET grid = ?, title = ?, week_start = ?, status = 'published', published_at = datetime('now') WHERE id = ?")
       .run(JSON.stringify(plan), plan.title, plan.events[0].date, roster.id);
     return { count: n, replaced: rep };

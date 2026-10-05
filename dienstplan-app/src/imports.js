@@ -3,8 +3,9 @@
 import { db, createPerson, nextColor } from './db.js';
 import { broadcast } from './notify.js';
 import { postMessage } from './messages.js';
-import { gridToEvents, sanitizeGrid, venueEvent } from './roster.js';
+import { gridToEvents, sanitizeGrid, venueEvent, parsePersonCell } from './roster.js';
 import { pdfPages, itemsToGrid } from './pdf-text.js';
+import { ocrPdfItems, ocrAvailable } from './pdf-ocr.js';
 import { parseRosterPdfClaude, claudeAvailable } from './pdf-claude.js';
 import { spielplanFromPages } from './spielplan.js';
 import { probenplanFromPages } from './probenplan.js';
@@ -57,6 +58,22 @@ function saveDraft(type, { title, weekStart, attachmentId, method, data, personI
   return getRoster(Number(r.lastInsertRowid));
 }
 
+// Hinweise auf wahrscheinliche Lesefehler, z. B. "01:00-17:00" statt "09:00-17:00".
+const WEEKDAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+function implausibleShifts(grid) {
+  const out = [];
+  for (const row of grid.rows.filter((r) => r.kind === 'person')) {
+    row.cells.forEach((cell, i) => {
+      const p = parsePersonCell(cell);
+      if (p.type !== 'shift' || !p.end) return;
+      const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+      const length = (mins(p.end) - mins(p.start) + 1440) % 1440;
+      if (length > 12 * 60 || mins(p.start) < 6 * 60) out.push(`${row.label}, ${WEEKDAY_SHORT[i]}: ${p.start}–${p.end} sieht ungewöhnlich aus – bitte prüfen.`);
+    });
+  }
+  return out;
+}
+
 // Liest ein PDF und legt einen Entwurf an. type: auto | dienstplan | spielplan | probenplan
 export async function createDraft(buffer, { attachmentId, personId, type = 'auto', method = 'auto' }) {
   let pages = [];
@@ -95,10 +112,21 @@ export async function createDraft(buffer, { attachmentId, personId, type = 'auto
   }
   if (!result && wanted === 'text') {
     try {
-      if ((pages[0] || []).length < 10) throw new Error('Das PDF enthält keinen lesbaren Text (reiner Bild-Scan). Bitte die KI-Erkennung nutzen oder den Plan in der Vorschau eintragen.');
+      if ((pages[0] || []).length < 10) throw new Error('Das PDF enthält keinen lesbaren Text (reiner Bild-Scan).');
       result = itemsToGrid(pages[0]);
     } catch (err) {
-      warnings.push(err.message);
+      // Textebene unbrauchbar (Bild-Scan oder Zeichensalat wie bei „Microsoft Print to PDF“) → Bild lesen.
+      if (ocrAvailable()) wanted = 'ocr';
+      else warnings.push(`${err.message} Bitte die KI-Erkennung nutzen oder den Plan in der Vorschau eintragen.`);
+    }
+  }
+  if (!result && wanted === 'ocr') {
+    try {
+      result = itemsToGrid(await ocrPdfItems(buffer));
+      result.warnings.unshift('Per Texterkennung aus dem Bild gelesen – bitte besonders genau prüfen.');
+    } catch (err) {
+      console.warn('Texterkennung fehlgeschlagen:', err);
+      warnings.push(`Texterkennung fehlgeschlagen: ${err.message}`);
     }
   }
   if (!result) {
@@ -111,6 +139,7 @@ export async function createDraft(buffer, { attachmentId, personId, type = 'auto
   }
   warnings.push(...result.warnings);
   const grid = sanitizeGrid(result.grid);
+  warnings.push(...implausibleShifts(grid));
   const roster = saveDraft('dienstplan', { title: grid.title, weekStart: grid.dates[0], attachmentId, method: wanted, data: grid, personId });
   return { type: 'dienstplan', roster, assignments: suggestAssignments(grid), warnings };
 }
@@ -125,7 +154,7 @@ function insertEvent(e, rosterId, personId) {
 }
 
 // Ältere veröffentlichte Fassungen ersetzen ("Änderungen vorbehalten", "aktualisierter Spielplan").
-const DIENSTPLAN_METHODS = ['claude', 'text', 'manual'];
+const DIENSTPLAN_METHODS = ['claude', 'text', 'ocr', 'manual'];
 function replacePrevious(roster, sameVersion) {
   const family = DIENSTPLAN_METHODS.includes(roster.method) ? DIENSTPLAN_METHODS : [roster.method];
   const previous = db.prepare(`SELECT * FROM rosters WHERE status = 'published' AND id != ? AND method IN (${family.map(() => '?').join(',')})`)

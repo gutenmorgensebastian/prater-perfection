@@ -29,21 +29,26 @@ const hhmm = (h, m) => {
   return `${pad(hh)}:${pad(mm)}`;
 };
 
-// Typische Fehler der Scanner-Texterkennung in Uhrzeiten: "18:C)0", "i6:ü0", "O9:3O".
-const OCR_DIGITS = { 'C)': '0', '()': '0', O: '0', o: '0', D: '0', 'ü': '0', 'Ü': '0', i: '1', I: '1', l: '1', '|': '1', '!': '1', S: '5', B: '8', Z: '2', z: '2' };
-const OCR_RE = /C\)|\(\)|[OoDüÜiIl|!SBZz]/g;
+// Typische Fehler der Scanner-Texterkennung in Uhrzeiten: "18:C)0", "i6:ü0", "O9:3O", "13:(X)", "09:[)0".
+const OCR_DIGITS = {
+  'CIC)': '00', 'CIC1': '00', 'C)C)': '00', '(X)': '00', 'fü)': '00', 'fü1': '00',
+  'C)': '0', '()': '0', '[)': '0', C1: '0',
+  O: '0', o: '0', D: '0', 'ü': '0', 'Ü': '0', i: '1', I: '1', l: '1', '|': '1', '!': '1', S: '5', B: '8', Z: '2', z: '2',
+};
+const OCR_RE = /CIC\)|CIC1|C\)C\)|\(X\)|fü\)|fü1|C\)|\(\)|\[\)|C1|[OoDüÜiIl|!SBZz]/g;
 
 function fixOcrTime(compact) {
   // Nur den Anfang der Zelle korrigieren, solange er nach Uhrzeit aussieht.
-  const m = compact.match(/^[0-9:.\-–OoDCc()üÜiIl|!SBZz]+/);
+  const m = compact.match(/^[0-9:.\-–OoDCc()[\]Xfü'ÜiIl|!SBZz]+/);
   if (!m) return compact;
-  return m[0].replace(OCR_RE, (c) => OCR_DIGITS[c]) + compact.slice(m[0].length);
+  return m[0].replace(/'/g, '').replace(OCR_RE, (c) => OCR_DIGITS[c]) + compact.slice(m[0].length);
 }
 
 export function normalizeOffCode(text) {
   const t = text.replace(/\s+/g, ' ').trim();
   const f = t.replace(/\s/g, '').match(/^F(\d+)\.(\d+)$/i);
   if (f) return `F ${f[1]}.${f[2]}`;
+  if (/^fü$/i.test(t)) return 'FÜ';
   return t;
 }
 
@@ -58,7 +63,8 @@ const OFF_RE =/^(F|FÜ|FZA|U|UL|Urlaub|K|krank|frei)\b/i;
 
 // Personen-Zelle: "10:00-18:00" | "F" | "F 40.2" | "FÜ" | "" | freier Text
 export function parsePersonCell(raw) {
-  const text = String(raw ?? '').replace(/\s+/g, ' ').trim();
+  // Streupunkte und Striche vom Scan am Anfang weg: ". F 42.1", "' Fü"
+  const text = String(raw ?? '').replace(/\s+/g, ' ').trim().replace(/^['`´’".,:;]+\s*/, '');
   if (!text || text === '-' || text === '–') return { type: 'empty' };
   const compact = fixOcrTime(text.replace(/\s+/g, ''));
   const m = compact.match(/^(\d{1,2})[:.](\d{2})(?:[-–](\d{1,2})[:.](\d{2}))?(.*)$/);

@@ -38,11 +38,12 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
 
 ## Dienstplan-Erkennung
 
-Es gibt zwei Wege, das PDF einzulesen. Vor dem Veröffentlichen kommt bei beiden eine Vorschau, in der du jede Zelle korrigieren kannst.
+Es gibt drei Wege, das PDF einzulesen. Vor dem Veröffentlichen kommt bei allen eine Vorschau, in der du jede Zelle korrigieren kannst. Ungewöhnliche Dienste (länger als 12 Stunden oder Beginn vor 6 Uhr) werden dort als Warnung angezeigt, weil sie meist Lesefehler sind.
 
 | Weg | Kosten | Wann |
 |---|---|---|
-| **Textebene des PDFs** | kostenlos | Funktioniert, wenn der Scanner Texterkennung macht. Beim aktuellen Plan (Sharp-Kopierer) ist das so, und typische Lesefehler wie `18:C)0` werden automatisch korrigiert. |
+| **Textebene des PDFs** | kostenlos | Funktioniert, wenn der Scanner Texterkennung macht. Beim Sharp-Kopierer ist das so. Typische Lesefehler wie `18:C)0`, `13:(X)` oder `i3.10.2026` werden automatisch korrigiert. |
+| **Texterkennung aus dem Bild** | kostenlos | Springt automatisch ein, wenn die Textebene unbrauchbar ist: bei reinen Bild-Scans und bei „Microsoft Print to PDF“, wo der Text nur als Zeichensalat drinsteckt. Vorher werden die Tabellenlinien entfernt. Läuft auf dem Server mit `tesseract` (im Docker-Image enthalten). |
 | **KI (Claude)** | ca. 1–5 Cent pro PDF | Funktioniert auch bei reinen Bild-Scans oder Fotos. Liest zuverlässiger. Dafür muss `ANTHROPIC_API_KEY` gesetzt sein. |
 
 Codes wie `F`, `F 40.2` oder `FÜ` werden als **Frei** eingetragen. Frei-Tage sind standardmäßig ausgeblendet und lassen sich einblenden.

@@ -5,6 +5,14 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { isoWeekMonday, addDays, looksLikePersonRow } from './roster.js';
 
 const DATE_RE = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+// Datum trotz typischer Lesefehler der Scanner-Texterkennung: "i3.10.2026", "16.10.202ß", "18.'tO.2026".
+const DATE_OCR = { i: '1', I: '1', l: '1', '|': '1', '!': '1', t: '1', O: '0', o: '0', D: '0', ü: '0', Ü: '0', C: '0', ß: '6', S: '5', B: '8', Z: '2', z: '2' };
+export function ocrDate(str) {
+  const s = str.replace(/['`´’"(),]/g, '').replace(/[iIl|!tOoDüÜCßSBZz]/g, (c) => DATE_OCR[c]);
+  const m = s.match(DATE_RE);
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > 31 || Number(m[2]) < 1 || Number(m[2]) > 12) return null;
+  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+}
 const WEEKDAYS = ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag'];
 
 // Textstücke mit Position je Seite: [[{ str, x, y, w }], …]
@@ -46,13 +54,11 @@ export function textLines(items) {
 export function itemsToGrid(items) {
   const warnings = [];
   const fullText = items.map((i) => i.str).join(' ');
-  const title = (fullText.match(/Dienstplan[^]*?\d{4}/)?.[0] || '').replace(/\s+/g, ' ').slice(0, 120);
+  let title = (fullText.match(/Dienstplan[^]*?\d{4}/)?.[0] || '').replace(/\s+/g, ' ').slice(0, 120);
 
   // 1. Spalten über die Datumszeile (oder die Wochentage) finden.
-  let headers = items.filter((i) => DATE_RE.test(i.str)).map((i) => {
-    const [, d, m, y] = i.str.match(DATE_RE);
-    return { cx: i.x + i.w / 2, y: i.y, date: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` };
-  });
+  let headers = items.map((i) => ({ i, date: ocrDate(i.str) })).filter((h) => h.date)
+    .map(({ i, date }) => ({ cx: i.x + i.w / 2, y: i.y, date }));
   // Nur Datumsangaben, die in einer Zeile liegen (nicht z. B. "Datum: 21.09.2026" unten).
   if (headers.length) {
     const top = Math.max(...headers.map((h) => h.y));
@@ -61,9 +67,15 @@ export function itemsToGrid(items) {
   let dates;
   if (headers.length >= 5) {
     headers.sort((a, b) => a.cx - b.cx);
-    const first = headers[0].date;
-    const monday = addDays(first, -((new Date(`${first}T12:00:00Z`).getUTCDay() + 6) % 7));
+    // Montag der Woche, die die meisten erkannten Daten stimmen (ein verlesenes Datum stört dann nicht).
+    const votes = new Map();
+    for (const h of headers) {
+      const mon = addDays(h.date, -((new Date(`${h.date}T12:00:00Z`).getUTCDay() + 6) % 7));
+      votes.set(mon, (votes.get(mon) || 0) + 1);
+    }
+    const monday = [...votes].sort((a, b) => b[1] - a[1])[0][0];
     dates = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+    headers = headers.filter((h) => dates.includes(h.date));
   } else {
     headers = items.filter((i) => WEEKDAYS.includes(i.str.toLowerCase()))
       .map((i) => ({ cx: i.x + i.w / 2, y: i.y, day: WEEKDAYS.indexOf(i.str.toLowerCase()) }));
@@ -72,6 +84,11 @@ export function itemsToGrid(items) {
     const monday = isoWeekMonday(Number(kw[2]), Number(kw[1]));
     dates = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
     warnings.push('Datum aus der Kalenderwoche berechnet – bitte prüfen.');
+  }
+  if (!title) {
+    const d = new Date(`${dates[3]}T12:00:00Z`);
+    const kw = Math.ceil(((d - new Date(Date.UTC(d.getUTCFullYear(), 0, 1))) / 864e5 + 1) / 7);
+    title = `Dienstplan ${kw}. KW ${d.getUTCFullYear()}`;
   }
   const centers = headers.map((h) => h.cx);
   const colWidth = (centers[centers.length - 1] - centers[0]) / (centers.length - 1);
@@ -89,10 +106,12 @@ export function itemsToGrid(items) {
   const labels = [];
   for (const it of labelItems) {
     const last = labels[labels.length - 1];
-    if (last && Math.abs(last.y - it.y) < 3) last.label += ` ${it.str}`;
-    else labels.push({ y: it.y, label: it.str });
+    if (last && Math.abs(last.y - it.y) < 3) last.parts.push(it);
+    else labels.push({ y: it.y, parts: [it] });
   }
-  const stop = labels.findIndex((l) => /^datum/i.test(l.label));
+  // Wörter einer Beschriftung von links nach rechts ("Roter Salon", auch wenn "Salon" etwas höher liegt).
+  for (const l of labels) l.label = l.parts.sort((a, b) => a.x - b.x).map((p) => p.str).join(' ');
+  const stop = labels.findIndex((l) => /^\W*datum/i.test(l.label));
   const rowsMeta = (stop >= 0 ? labels.slice(0, stop) : labels).map((l) => ({ ...l, parts: Array.from({ length: 7 }, () => []) }));
   if (!rowsMeta.length) throw new Error('Keine Zeilen (Bereiche oder Namen) im PDF gefunden.');
   const bottomY = stop >= 0 ? labels[stop].y : -Infinity;
@@ -115,7 +134,7 @@ export function itemsToGrid(items) {
     const cells = r.parts.map((parts) => parts
       .sort((a, b) => (Math.abs(a.y - b.y) < 3 ? a.x - b.x : b.y - a.y))
       .map((p) => p.str).join(' ').replace(/\s+/g, ' ').trim());
-    return { label: r.label.replace(/\s+/g, ' ').trim(), kind: looksLikePersonRow(cells) ? 'person' : 'area', cells };
+    return { label: r.label.replace(/^[^\wÄÖÜäöü]+/, '').replace(/\s+/g, ' ').trim(), kind: looksLikePersonRow(cells) ? 'person' : 'area', cells };
   });
   return { grid: { title, dates, rows }, warnings };
 }

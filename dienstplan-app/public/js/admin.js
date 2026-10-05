@@ -23,6 +23,7 @@ export function renderAdmin(view) {
           <option value="auto">automatisch</option>
           <option value="claude" ${state.claude ? '' : 'disabled'}>KI (Claude)${state.claude ? '' : ' – kein API-Schlüssel'}</option>
           <option value="text">Textebene des PDFs</option>
+          <option value="ocr">Texterkennung aus dem Bild</option>
           <option value="manual">Selbst eintragen</option>
         </select>
       </details>
@@ -133,7 +134,7 @@ function openEditor({ roster, assignments, warnings }) {
   const assign = [...assignments];
   const root = $('#import-editor');
   const lastChannel = state.channels.find((c) => /dienstplan/i.test(c.name)) || state.channels[0];
-  const methodText = { claude: 'per KI erkannt', text: 'aus der Textebene des PDFs erkannt', manual: 'zum Selbst-Eintragen' }[roster.method];
+  const methodText = { claude: 'per KI erkannt', text: 'aus der Textebene des PDFs erkannt', ocr: 'per Texterkennung aus dem Bild gelesen', manual: 'zum Selbst-Eintragen' }[roster.method];
 
   const personOptions = (sel) => [
     `<option value="new" ${sel === 'new' ? 'selected' : ''}>➕ neu anlegen</option>`,

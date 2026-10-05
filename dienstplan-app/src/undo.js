@@ -54,6 +54,7 @@ export function personSpecs(id) {
     { table: 'people', where: 'id = ?', params: [id] },
     { table: 'events', where: 'person_id = ?', params: [id] },
     { table: 'todo_assignees', where: 'person_id = ?', params: [id] },
+    { table: 'info_viewers', where: 'person_id = ?', params: [id] },
     { table: 'push_subscriptions', where: 'person_id = ?', params: [id] },
     { table: 'questions', where: q, params: [id, id] },
     { table: 'question_replies', where: `question_id IN (SELECT id FROM questions WHERE ${q})`, params: [id, id] },

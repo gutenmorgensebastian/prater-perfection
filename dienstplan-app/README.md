@@ -30,6 +30,7 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
 - **Infos:**
   - Sicherheitsbestimmungen, Anleitungen (z. B. Alarmanlage), wichtige PDFs und Ansagen, sortiert nach Rubriken.
   - Bei einer **Ansage** bekommen alle eine Benachrichtigung.
+  - **Vertrauliche Infos** (z. B. Telefonnummern, Zugangscodes): Admins können eine Info unter „Sichtbar für“ auf einzelne Personen beschränken. Alle anderen sehen sie nicht, auch nicht ihre Anhänge. Admins sehen sie immer, ändern können sie nur Admins. Ist eine vertrauliche Info eine Ansage, bekommen nur die Ausgewählten eine Benachrichtigung, und zwar ohne den Text. So landen keine Codes auf dem Sperrbildschirm.
 - **Bestellen:**
   - Bestellwünsche mit Menge, Notiz bzw. Shop-Link und Fotos.
   - Mit „🙋 Ich kümmere mich“ übernimmt jemand den Wunsch, danach folgen „Bestellt“ und „Erledigt / ist da“.
@@ -127,9 +128,9 @@ git pull && docker compose up -d --build
 
 | Rolle | Darf |
 |---|---|
-| Admin | alles, inklusive Verwaltung und Kalender anlegen |
-| Mitarbeiter*in | alles lesen und schreiben: Termine, Chat, To-Dos, Fragen, Infos, Bestellwünsche |
-| Gast | alles lesen, nichts schreiben |
+| Admin | alles, inklusive Verwaltung, Kalender anlegen und vertrauliche Infos |
+| Mitarbeiter*in | alles lesen und schreiben: Termine, Chat, To-Dos, Fragen, Infos, Bestellwünsche (vertrauliche Infos nur, wenn freigegeben, und nur lesen) |
+| Gast | alles lesen (außer vertraulichen Infos, die nicht für ihn freigegeben sind), nichts schreiben |
 | Ohne Zugang | steht nur im Dienstplan, kein Link |
 
 ## Anmeldung: nur ein Link

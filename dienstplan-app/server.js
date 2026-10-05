@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { db, UPLOAD_DIR, bootstrap, createPerson, newToken } from './src/db.js';
 import { HttpError, intParam, requireWriter, requireAdmin, upload, saveAttachment } from './src/http.js';
-import { registerTeamRoutes } from './src/team.js';
+import { registerTeamRoutes, canSeeAttachment } from './src/team.js';
 import { claudeAvailable } from './src/pdf-claude.js';
 import { createDraft, publishDraft, getRoster, typeOf, suggestAssignments } from './src/imports.js';
 import { MESSAGE_SQL, getMessage, postMessage } from './src/messages.js';
@@ -214,7 +214,7 @@ api.post('/undo/:token', (req, res) => {
   if (tables.has('events')) broadcast('events');
   if (tables.has('messages') || tables.has('channels')) broadcast('message-updated', {});
   if (tables.has('todos') || tables.has('todo_assignees') || tables.has('todo_tags') || kinds.has('todo')) broadcast('todos');
-  if (tables.has('infos') || kinds.has('info')) broadcast('infos');
+  if (tables.has('infos') || tables.has('info_viewers') || kinds.has('info')) broadcast('infos');
   if (tables.has('orders') || kinds.has('order')) broadcast('orders');
   const qs = parts.filter((p) => p.table === 'questions').flatMap((p) => p.rows);
   if (qs.length) broadcast('questions', { people: [...new Set(qs.flatMap((q) => [q.from_id, q.to_id]))] });
@@ -274,7 +274,7 @@ api.get('/channels/:id/library', (req, res) => {
 
 api.get('/files/:id', (req, res) => {
   const a = db.prepare('SELECT * FROM attachments WHERE id = ?').get(intParam(req.params.id));
-  if (!a) throw new HttpError(404, 'Datei nicht gefunden');
+  if (!a || !canSeeAttachment(a.id, req.person)) throw new HttpError(404, 'Datei nicht gefunden');
   const inline = INLINE_TYPES.has(a.mime);
   res.set('Content-Type', inline ? a.mime : 'application/octet-stream');
   res.set('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.original_name)}`);

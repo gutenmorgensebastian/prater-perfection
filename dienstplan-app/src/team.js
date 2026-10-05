@@ -36,6 +36,24 @@ function reorder(table, ids) {
   clean.forEach((id, i) => upd.run(slots[i], id));
 }
 
+// Vertrauliche Infos: sichtbar für Admins und die freigegebenen Personen.
+export function canSeeInfo(info, person) {
+  if (!info.restricted || person.role === 'admin') return true;
+  return !!db.prepare('SELECT 1 FROM info_viewers WHERE info_id = ? AND person_id = ?').get(info.id, person.id);
+}
+
+// Darf die Person diese Datei sehen? Nein, wenn sie nur an vertraulichen Infos hängt, die nicht für sie sind.
+export function canSeeAttachment(attachmentId, person) {
+  if (person.role === 'admin') return true;
+  const infos = db.prepare(`SELECT i.* FROM item_attachments ia JOIN infos i ON i.id = ia.item_id
+    WHERE ia.kind = 'info' AND ia.attachment_id = ?`).all(attachmentId);
+  if (!infos.length || infos.some((i) => canSeeInfo(i, person))) return true;
+  // Hängt die Datei zusätzlich irgendwo anders (Chat, To-Do, Bestellwunsch, Plan), bleibt sie dort sichtbar.
+  return !!(db.prepare("SELECT 1 FROM item_attachments WHERE attachment_id = ? AND kind != 'info'").get(attachmentId)
+    || db.prepare('SELECT 1 FROM messages WHERE attachment_id = ?').get(attachmentId)
+    || db.prepare('SELECT 1 FROM rosters WHERE attachment_id = ?').get(attachmentId));
+}
+
 export function registerTeamRoutes(api) {
   // --- To-Dos -------------------------------------------------------------------
   function listTodos() {
@@ -142,12 +160,14 @@ export function registerTeamRoutes(api) {
 
   // --- Anhänge an To-Dos, Infos, Bestellwünsche ---------------------------------------
   for (const [kind, table] of [['todo', 'todos'], ['info', 'infos'], ['order', 'orders']]) {
-    const exists = (id) => {
-      if (!db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(intParam(id))) throw new HttpError(404, 'Eintrag nicht gefunden');
+    const exists = (id, req) => {
+      const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(intParam(id));
+      if (!row || (kind === 'info' && !canSeeInfo(row, req.person))) throw new HttpError(404, 'Eintrag nicht gefunden');
+      if (kind === 'info' && row.restricted && !isAdmin(req)) throw new HttpError(403, 'Vertrauliche Infos können nur Admins ändern');
       return Number(id);
     };
     api.post(`/${table}/:id/attachments`, requireWriter, upload.single('file'), (req, res) => {
-      const id = exists(req.params.id);
+      const id = exists(req.params.id, req);
       if (!req.file) throw new HttpError(400, 'Keine Datei ausgewählt');
       const a = saveAttachment(req.file, req.person.id);
       db.prepare('INSERT INTO item_attachments (kind, item_id, attachment_id) VALUES (?, ?, ?)').run(kind, id, a.id);
@@ -156,7 +176,7 @@ export function registerTeamRoutes(api) {
     });
     api.delete(`/${table}/:id/attachments/:aid`, requireWriter, (req, res) => {
       const where = 'kind = ? AND item_id = ? AND attachment_id = ?';
-      const params = [kind, exists(req.params.id), intParam(req.params.aid)];
+      const params = [kind, exists(req.params.id, req), intParam(req.params.aid)];
       const undo = snapshot(req.person.id, [{ table: 'item_attachments', where, params }]);
       db.prepare(`DELETE FROM item_attachments WHERE ${where}`).run(...params);
       broadcast(table);
@@ -242,16 +262,45 @@ export function registerTeamRoutes(api) {
 
   // --- Infos -----------------------------------------------------------------------
   const CATEGORIES = ['Ansage', 'Sicherheit', 'Anleitung', 'Dokument', 'Allgemein'];
-  const listInfos = () => {
+  const listInfos = (person) => {
     const files = attachmentsByItem('info');
+    const viewers = new Map();
+    for (const v of db.prepare('SELECT info_id, person_id FROM info_viewers').all()) {
+      if (!viewers.has(v.info_id)) viewers.set(v.info_id, []);
+      viewers.get(v.info_id).push(v.person_id);
+    }
     return db.prepare('SELECT i.*, p.name AS author FROM infos i LEFT JOIN people p ON p.id = i.created_by ORDER BY i.position, i.id').all()
-      .map((i) => ({ ...i, attachments: files.get(i.id) || [] }));
+      .filter((i) => !i.restricted || person.role === 'admin' || viewers.get(i.id)?.includes(person.id))
+      .map((i) => ({ ...i, viewers: i.restricted ? viewers.get(i.id) || [] : [], attachments: files.get(i.id) || [] }));
   };
   const editableInfo = (req) => {
     const i = db.prepare('SELECT * FROM infos WHERE id = ?').get(intParam(req.params.id));
-    if (!i) throw new HttpError(404, 'Info nicht gefunden');
+    if (!i || !canSeeInfo(i, req.person)) throw new HttpError(404, 'Info nicht gefunden');
+    if (i.restricted && !isAdmin(req)) throw new HttpError(403, 'Vertrauliche Infos können nur Admins ändern');
     if (i.created_by !== req.person.id && !isAdmin(req)) throw new HttpError(403, 'Nur wer die Info angelegt hat (oder ein Admin) kann sie ändern');
     return i;
+  };
+  // Sichtbarkeit festlegen dürfen nur Admins; bei allen anderen bleibt sie, wie sie ist.
+  const setVisibility = (req, infoId) => {
+    const b = req.body || {};
+    if (!isAdmin(req) || b.restricted === undefined) return;
+    const ids = b.restricted && Array.isArray(b.viewers) ? b.viewers.map(Number).filter(Number.isInteger) : [];
+    db.prepare('UPDATE infos SET restricted = ? WHERE id = ?').run(b.restricted ? 1 : 0, infoId);
+    db.prepare('DELETE FROM info_viewers WHERE info_id = ?').run(infoId);
+    const add = db.prepare('INSERT OR IGNORE INTO info_viewers (info_id, person_id) SELECT ?, id FROM people WHERE id = ?');
+    for (const id of ids) add.run(infoId, id);
+  };
+  // Ansagen per Push: vertrauliche nur an die Freigegebenen und ohne Inhalt (Codes gehören nicht auf den Sperrbildschirm).
+  const announce = (req, infoId) => {
+    const i = db.prepare('SELECT * FROM infos WHERE id = ?').get(infoId);
+    if (i.category !== 'Ansage') return;
+    if (!i.restricted) {
+      notify(pushAll({ title: `📢 ${i.title}`, body: i.body || `Neue Ansage von ${req.person.name}`, url: '/#/infos' }, req.person.id));
+      return;
+    }
+    const ids = db.prepare("SELECT person_id AS id FROM info_viewers WHERE info_id = ? UNION SELECT id FROM people WHERE role = 'admin'").all(i.id)
+      .map((r) => r.id).filter((id) => id !== req.person.id);
+    notify(pushTo(ids, { title: `🔒 ${i.title}`, body: 'Vertrauliche Info – im Pratomat ansehen', url: '/#/infos' }));
   };
   const readInfo = (b, fallback = {}) => {
     const title = text(b.title ?? fallback.title, 200);
@@ -260,31 +309,35 @@ export function registerTeamRoutes(api) {
     return { title, category, body: text(b.body ?? fallback.body, 20000) };
   };
 
-  api.get('/infos', (req, res) => res.json({ categories: CATEGORIES, infos: listInfos() }));
+  api.get('/infos', (req, res) => res.json({ categories: CATEGORIES, infos: listInfos(req.person) }));
 
   api.post('/infos', requireWriter, (req, res) => {
     const i = readInfo(req.body || {});
     const position = db.prepare('SELECT COALESCE(MIN(position), 0) - 1 AS p FROM infos').get().p;
     const r = db.prepare('INSERT INTO infos (category, title, body, position, created_by) VALUES (?, ?, ?, ?, ?)')
       .run(i.category, i.title, i.body, position, req.person.id);
+    const id = Number(r.lastInsertRowid);
+    setVisibility(req, id);
     broadcast('infos');
-    if (i.category === 'Ansage') notify(pushAll({ title: `📢 ${i.title}`, body: i.body || `Neue Ansage von ${req.person.name}`, url: '/#/infos' }, req.person.id));
-    res.json(listInfos().find((x) => x.id === Number(r.lastInsertRowid)));
+    announce(req, id);
+    res.json(listInfos(req.person).find((x) => x.id === id));
   });
 
   api.patch('/infos/:id', requireWriter, (req, res) => {
     const old = editableInfo(req);
     const i = readInfo(req.body || {}, old);
     db.prepare(`UPDATE infos SET category = ?, title = ?, body = ?, updated_at = ${NOW} WHERE id = ?`).run(i.category, i.title, i.body, old.id);
+    setVisibility(req, old.id);
     broadcast('infos');
-    if (i.category === 'Ansage' && old.category !== 'Ansage') notify(pushAll({ title: `📢 ${i.title}`, body: i.body || `Neue Ansage von ${req.person.name}`, url: '/#/infos' }, req.person.id));
-    res.json(listInfos().find((x) => x.id === old.id));
+    if (i.category === 'Ansage' && old.category !== 'Ansage') announce(req, old.id);
+    res.json(listInfos(req.person).find((x) => x.id === old.id));
   });
 
   api.delete('/infos/:id', requireWriter, (req, res) => {
     const i = editableInfo(req);
     const undo = snapshot(req.person.id, [
       { table: 'infos', where: 'id = ?', params: [i.id] },
+      { table: 'info_viewers', where: 'info_id = ?', params: [i.id] },
       { table: 'item_attachments', where: "kind = 'info' AND item_id = ?", params: [i.id] },
     ]);
     db.prepare("DELETE FROM item_attachments WHERE kind = 'info' AND item_id = ?").run(i.id);

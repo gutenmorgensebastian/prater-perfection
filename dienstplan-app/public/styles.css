@@ -280,6 +280,14 @@ details.done-section > summary { cursor: pointer; color: var(--muted); margin: 1
 .info h3 .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .info .body { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0 0; }
 .info .foot { font-size: .78rem; color: var(--muted); margin-top: .4rem; }
+.info.restricted { background: color-mix(in srgb, var(--surface) 92%, #8b5cf6); border-style: dashed; }
+.info .restricted-for { color: #8b5cf6; font-weight: 600; }
+.info h3 .lock { flex: 0 0 auto; }
+fieldset.visibility { border: 1px solid var(--border); border-radius: 10px; padding: .5rem .7rem .6rem; margin: .8rem 0 .2rem; }
+fieldset.visibility legend { font-size: .85rem; font-weight: 600; padding: 0 .3rem; }
+fieldset.visibility .radio { display: flex; gap: .45rem; align-items: center; margin: .2rem 0; color: var(--text); font-size: 1rem; }
+fieldset.visibility .radio input { width: auto; margin: 0; }
+fieldset.visibility .pick { margin-top: .4rem; }
 
 /* Bestellwünsche */
 .order { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .65rem .8rem; margin-bottom: .5rem; display: grid; gap: .35rem; }

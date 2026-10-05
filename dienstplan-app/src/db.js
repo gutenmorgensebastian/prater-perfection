@@ -167,6 +167,18 @@ if (!db.prepare('PRAGMA table_info(events)').all().some((c) => c.name === 'calen
   db.exec('ALTER TABLE events ADD COLUMN calendar_id INTEGER REFERENCES calendars(id) ON DELETE CASCADE');
 }
 
+// Vertrauliche Infos (z. B. Zugangscodes): nur für ausgewählte Personen sichtbar, Admins sehen immer alles.
+if (!db.prepare('PRAGMA table_info(infos)').all().some((c) => c.name === 'restricted')) {
+  db.exec('ALTER TABLE infos ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0');
+}
+db.exec(`
+CREATE TABLE IF NOT EXISTS info_viewers (
+  info_id INTEGER NOT NULL REFERENCES infos(id) ON DELETE CASCADE,
+  person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+  PRIMARY KEY (info_id, person_id)
+);
+`);
+
 export const newToken = () => crypto.randomBytes(24).toString('base64url');
 
 export function getSetting(key) {

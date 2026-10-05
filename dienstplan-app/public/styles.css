@@ -69,8 +69,10 @@ main {
   background: var(--surface); border-top: 1px solid var(--border);
 }
 .tabbar a {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-size: .75rem; color: var(--muted); text-decoration: none; position: relative;
+  /* Breite nach Beschriftung: lange Namen („Produktionen“) bekommen mehr Platz als „Chat“. */
+  flex: 1 1 auto; min-width: 0; padding: 0 1px; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: clamp(.6rem, 2.7vw, .75rem); color: var(--muted); text-decoration: none; position: relative;
 }
 .tabbar a .ico { font-size: 1.35rem; line-height: 1.2; }
 .tabbar a.active { color: var(--accent); font-weight: 600; }
@@ -344,3 +346,54 @@ table.sp-grid input[type=time] { width: 6.5rem; }
 .row > .time { flex: 0 0 auto; } /* Datum und Uhrzeit: lieber umbrechen als quetschen */
 .row > .date { min-width: 9.5rem; }
 .tp-sep { font-weight: 600; }
+
+/* --- Produktionen --- */
+.prod-card, .prod-hit { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .75rem .9rem; margin-bottom: .6rem; color: var(--text); text-decoration: none; }
+.prod-card-head { display: flex; gap: .5rem; align-items: center; justify-content: space-between; font-size: 1.1rem; margin-bottom: .2rem; }
+.prod-card > div + div { margin-top: .2rem; }
+.prod-archive summary { cursor: pointer; color: var(--muted); margin: .6rem 0; }
+.prod-status { font-size: .72rem; font-weight: 600; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.prod-status.st-vorbereitung { background: #fef3c7; color: #92400e; }
+.prod-status.st-laeuft { background: #dcfce7; color: #166534; }
+@media (prefers-color-scheme: dark) {
+  .prod-status.st-vorbereitung { background: #422006; color: #fcd34d; }
+  .prod-status.st-laeuft { background: #052e16; color: #86efac; }
+}
+.back { display: inline-block; margin-bottom: .4rem; color: var(--muted); text-decoration: none; }
+.prod-head { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin-bottom: .8rem; }
+.prod-links h3, .prod-dates h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: .4rem 0; }
+.link-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
+.link-tile { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.link-tile a { flex: 1; min-width: 0; display: flex; gap: .6rem; align-items: center; padding: .6rem .7rem; color: var(--text); text-decoration: none; }
+.link-tile a > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.link-tile b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-ico { font-size: 1.6rem; }
+.small-btn { font-size: .85rem; padding: .3rem .7rem; }
+.prod-dates ul { margin: 0 0 .6rem; padding-left: 1.1rem; font-size: .9rem; }
+.phase-tabs { display: flex; gap: .3rem; overflow-x: auto; margin: 1rem 0 .7rem; padding-bottom: .2rem; }
+.phase-tabs a { flex: 0 0 auto; padding: .45rem .75rem; border-radius: 999px; border: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: .9rem; background: var(--surface); }
+.phase-tabs a.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.phase-tabs .cnt { font-size: .72rem; opacity: .75; }
+.page { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: .7rem .9rem; margin-bottom: .6rem; }
+.page.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+.page header { display: flex; gap: .4rem; align-items: center; }
+.page header h3 { flex: 1; margin: 0; font-size: 1.02rem; }
+.date-badge { font-size: .75rem; font-weight: 600; background: var(--surface-2); padding: .1rem .4rem; border-radius: 6px; vertical-align: middle; }
+.wiki { margin-top: .35rem; overflow-wrap: anywhere; }
+.wiki p { margin: .25rem 0; }
+.wiki h4 { margin: .6rem 0 .2rem; font-size: .9rem; }
+.wiki ul { margin: .2rem 0; padding-left: 1.2rem; }
+.wiki ul.wk-checks { list-style: none; padding-left: 0; }
+.wiki .wk-checks label { display: flex; gap: .45rem; align-items: flex-start; color: var(--text); font-size: 1rem; margin: .15rem 0; }
+.wiki .wk-checks input { width: auto; margin-top: .25rem; }
+.wiki .wk-checks li.done span { text-decoration: line-through; color: var(--muted); }
+.wk-link.known { display: inline-block; padding: .05rem .45rem; border-radius: 6px; background: var(--surface-2); text-decoration: none; font-weight: 600; }
+.wiki .hint { color: var(--muted); font-style: italic; cursor: text; }
+.wiki .hint .tap { font-style: normal; color: var(--accent); }
+.page footer { display: flex; justify-content: space-between; gap: .5rem; margin-top: .3rem; }
+.page.editing { border-color: var(--accent); }
+.editor textarea { font-family: inherit; line-height: 1.45; }
+.editor .row input[name=title] { font-weight: 600; }
+.fmt-help code { font-size: .8rem; background: var(--surface-2); padding: 0 .25rem; border-radius: 4px; }
+.page-add { margin-top: .4rem; }

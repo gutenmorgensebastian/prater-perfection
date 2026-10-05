@@ -183,6 +183,41 @@ CREATE TABLE IF NOT EXISTS info_viewers (
 );
 `);
 
+// Produktionen (Wiki): Kopf mit Status und Links, Unterpunkte nach Phase gegliedert.
+db.exec(`
+CREATE TABLE IF NOT EXISTS productions (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'vorbereitung', -- vorbereitung | laeuft | abgespielt
+  premiere TEXT,                               -- YYYY-MM-DD
+  venue TEXT NOT NULL DEFAULT 'Prater',
+  position REAL NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE TABLE IF NOT EXISTS prod_links (
+  id INTEGER PRIMARY KEY,
+  production_id INTEGER NOT NULL REFERENCES productions(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  url TEXT NOT NULL,
+  position REAL NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS prod_pages (
+  id INTEGER PRIMARY KEY,
+  production_id INTEGER NOT NULL REFERENCES productions(id) ON DELETE CASCADE,
+  phase TEXT NOT NULL,             -- ueberblick | vorbereitung | show | nachbereitung
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  hint TEXT NOT NULL DEFAULT '',   -- Hinweis aus der Vorlage, solange leer
+  date TEXT,                       -- für Notizen aus Treffen / Vorstellungsberichte
+  position REAL NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES people(id) ON DELETE SET NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+`);
+
 export const newToken = () => crypto.randomBytes(24).toString('base64url');
 
 export function getSetting(key) {

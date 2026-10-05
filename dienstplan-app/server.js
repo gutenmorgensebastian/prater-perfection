@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db, UPLOAD_DIR, bootstrap, createPerson, newToken } from './src/db.js';
 import { HttpError, intParam, requireWriter, requireAdmin, upload, saveAttachment } from './src/http.js';
 import { registerTeamRoutes, canSeeAttachment } from './src/team.js';
+import { registerProductionRoutes, seedProductions } from './src/productions.js';
 import { claudeAvailable } from './src/pdf-claude.js';
 import { createDraft, publishDraft, getRoster, typeOf, suggestAssignments } from './src/imports.js';
 import { MESSAGE_SQL, getMessage, postMessage } from './src/messages.js';
@@ -90,6 +91,7 @@ const INLINE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'ima
 // --- Statische Dateien -----------------------------------------------------
 app.get('/vendor/fullcalendar.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/fullcalendar/index.global.min.js')));
 app.get('/shared/roster.js', (req, res) => res.sendFile(path.join(ROOT, 'src/roster.js')));
+app.get('/shared/production-template.js', (req, res) => res.sendFile(path.join(ROOT, 'src/production-template.js')));
 app.get('/vendor/sortable.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/sortablejs/Sortable.min.js')));
 app.get('/vendor/fullcalendar-de.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/@fullcalendar/core/locales/de.global.min.js')));
 app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html' }));
@@ -245,6 +247,7 @@ api.post('/undo/:token', (req, res) => {
   if (tables.has('todos') || tables.has('todo_assignees') || tables.has('todo_tags') || kinds.has('todo')) broadcast('todos');
   if (tables.has('infos') || tables.has('info_viewers') || kinds.has('info')) broadcast('infos');
   if (tables.has('orders') || kinds.has('order')) broadcast('orders');
+  if (['productions', 'prod_pages', 'prod_links'].some((t) => tables.has(t)) || kinds.has('prodpage')) broadcast('productions', {});
   const qs = parts.filter((p) => p.table === 'questions').flatMap((p) => p.rows);
   if (qs.length) broadcast('questions', { people: [...new Set(qs.flatMap((q) => [q.from_id, q.to_id]))] });
   res.json({ ok: true });
@@ -312,6 +315,7 @@ api.get('/files/:id', (req, res) => {
 });
 
 registerTeamRoutes(api);
+registerProductionRoutes(api);
 
 // --- Admin -----------------------------------------------------------------
 const admin = express.Router();
@@ -470,6 +474,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 const admin0 = bootstrap();
+seedProductions();
 startMailPolling();
 app.listen(PORT, () => {
   console.log(`Pratomat läuft auf http://localhost:${PORT}`);

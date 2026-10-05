@@ -159,19 +159,23 @@ export function registerTeamRoutes(api) {
   });
 
   // --- Anhänge an To-Dos, Infos, Bestellwünsche ---------------------------------------
-  for (const [kind, table] of [['todo', 'todos'], ['info', 'infos'], ['order', 'orders']]) {
+  for (const [kind, table] of [['todo', 'todos'], ['info', 'infos'], ['order', 'orders'], ['prodpage', 'prod_pages']]) {
     const exists = (id, req) => {
       const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(intParam(id));
       if (!row || (kind === 'info' && !canSeeInfo(row, req.person))) throw new HttpError(404, 'Eintrag nicht gefunden');
       if (kind === 'info' && row.restricted && !isAdmin(req)) throw new HttpError(403, 'Vertrauliche Infos können nur Admins ändern');
       return Number(id);
     };
+    // Produktionen hören auf "productions" (mit der Produktion), alles andere auf den Tabellennamen.
+    const changedItem = (id) => (kind === 'prodpage'
+      ? broadcast('productions', { id: db.prepare('SELECT production_id FROM prod_pages WHERE id = ?').get(id)?.production_id })
+      : broadcast(table));
     api.post(`/${table}/:id/attachments`, requireWriter, upload.single('file'), (req, res) => {
       const id = exists(req.params.id, req);
       if (!req.file) throw new HttpError(400, 'Keine Datei ausgewählt');
       const a = saveAttachment(req.file, req.person.id);
       db.prepare('INSERT INTO item_attachments (kind, item_id, attachment_id) VALUES (?, ?, ?)').run(kind, id, a.id);
-      broadcast(table);
+      changedItem(id);
       res.json({ id: a.id, name: a.original_name, mime: a.mime, size: a.size });
     });
     api.delete(`/${table}/:id/attachments/:aid`, requireWriter, (req, res) => {
@@ -179,7 +183,7 @@ export function registerTeamRoutes(api) {
       const params = [kind, exists(req.params.id, req), intParam(req.params.aid)];
       const undo = snapshot(req.person.id, [{ table: 'item_attachments', where, params }]);
       db.prepare(`DELETE FROM item_attachments WHERE ${where}`).run(...params);
-      broadcast(table);
+      changedItem(params[1]);
       res.json({ ok: true, undo });
     });
   }

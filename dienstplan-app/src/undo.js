@@ -60,7 +60,8 @@ export function personSpecs(id) {
     { table: 'question_replies', where: `question_id IN (SELECT id FROM questions WHERE ${q})`, params: [id, id] },
     ...[['messages', 'person_id'], ['attachments', 'uploaded_by'], ['rosters', 'uploaded_by'], ['events', 'created_by'],
       ['todos', 'created_by'], ['todos', 'done_by'], ['question_replies', 'person_id'], ['infos', 'created_by'],
-      ['orders', 'claimed_by'], ['orders', 'created_by'], ['calendars', 'created_by']]
+      ['orders', 'claimed_by'], ['orders', 'created_by'], ['calendars', 'created_by'],
+      ['productions', 'created_by'], ['prod_links', 'created_by'], ['prod_pages', 'created_by'], ['prod_pages', 'updated_by']]
       .map(([table, column]) => ({ table, column, where: `${column} = ?`, params: [id] })),
   ];
 }

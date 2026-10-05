@@ -7,6 +7,7 @@ import { renderTodos, refreshTodos } from './js/todos.js';
 import { renderQuestions, refreshQuestions, refreshCounts } from './js/questions.js';
 import { renderInfos, refreshInfos } from './js/infos.js';
 import { renderOrders, refreshOrders } from './js/orders.js';
+import { renderProductions, refreshProductions } from './js/productions.js';
 import { maybeShowWelcome, loginHelpHtml, bindLoginHelp } from './js/welcome.js';
 
 let cleanup = null;
@@ -33,6 +34,8 @@ function route() {
     cleanup = renderInfos(view);
   } else if (section === 'bestellen') {
     cleanup = renderOrders(view);
+  } else if (section === 'produktionen') {
+    cleanup = renderProductions(view);
   } else if (section === 'admin' && state.me.role === 'admin') {
     renderAdmin(view);
   } else if (section === 'mehr') {
@@ -60,6 +63,7 @@ function connectLive() {
   });
   es.addEventListener('infos', () => refreshInfos());
   es.addEventListener('orders', () => refreshOrders());
+  es.addEventListener('productions', (e) => refreshProductions(JSON.parse(e.data || '{}')));
   es.addEventListener('people', async () => { await loadState(); refreshCalendar(); reloadPeopleAdmin(); });
   es.addEventListener('channels', async () => {
     await loadState();
@@ -88,7 +92,7 @@ async function start() {
   // Nach dem Zurückkehren in die App frische Daten holen (Handy war evtl. im Standby).
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      refreshCalendar(); onMessageChanged(); refreshTodos(); refreshQuestions(); refreshInfos(); refreshOrders();
+      refreshCalendar(); onMessageChanged(); refreshTodos(); refreshQuestions(); refreshInfos(); refreshOrders(); refreshProductions();
     }
   });
 }

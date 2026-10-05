@@ -35,6 +35,17 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
   - Sicherheitsbestimmungen, Anleitungen (z. B. Alarmanlage), wichtige PDFs und Ansagen, sortiert nach Rubriken.
   - Bei einer **Ansage** bekommen alle eine Benachrichtigung.
   - **Vertrauliche Infos** (z. B. Telefonnummern, Zugangscodes): Admins können eine Info unter „Sichtbar für“ auf einzelne Personen beschränken. Alle anderen sehen sie nicht, auch nicht ihre Anhänge. Admins sehen sie immer, ändern können sie nur Admins. Ist eine vertrauliche Info eine Ansage, bekommen nur die Ausgewählten eine Benachrichtigung, und zwar ohne den Text. So landen keine Codes auf dem Sperrbildschirm.
+- **Produktionen:** Ein kleines Wiki pro Produktion, z. B. Perfection, Voguing Ball und OMSK. Alle außer Gästen können Produktionen und Unterpunkte anlegen und bearbeiten.
+  - **📌 Wichtige Links** oben, z. B. Regiebuch oder Cue-Liste. Google Docs, Tabellen und Drive-Ordner bekommen ein eigenes Symbol, auch wenn der Link im Text steht.
+  - **📅 Nächste Termine:** Termine aus dem Kalender, deren Titel den Namen der Produktion enthält.
+  - Gliederung in vier Reiter. Jede neue Produktion bekommt die Unterpunkte als Vorlage mit Ausfüllhinweisen:
+    - **Überblick:** Team & Kontakte, Eckdaten
+    - **Vorbereitung:** Bühne & Aufbau, Licht, Ton & Video, Requisiten & Effekte, Sicherheit, Material & Bestellungen. Dazu „＋ Notizen aus Treffen“ mit Datum.
+    - **Show:** Einrichtung & Zeitplan, Ablauf & Cues, Checkliste vor der Vorstellung, Abbau. Dazu „＋ Vorstellungsbericht“ mit Datum.
+    - **Nachbereitung:** Abbau & Einlagerung, Leihmaterial & Rückgaben, Was lief gut / was nicht, Wiederaufnahme & Gastspiel.
+  - Schreiben mit einfachen Zeichen: `- Stichpunkt`, `[ ] Aufgabe` (direkt abhakbar), `## Überschrift` und `**fett**`. Fotos und Dateien lassen sich anhängen, Unterpunkte per Griff umsortieren.
+  - Suche über alle Produktionen.
+  - Speichern zwei Leute denselben Unterpunkt gleichzeitig, fragt der Pratomat nach, statt still zu überschreiben.
 - **Bestellen:**
   - Bestellwünsche mit Menge, Notiz bzw. Shop-Link und Fotos.
   - Mit „🙋 Ich kümmere mich“ übernimmt jemand den Wunsch, danach folgen „Bestellt“ und „Erledigt / ist da“.

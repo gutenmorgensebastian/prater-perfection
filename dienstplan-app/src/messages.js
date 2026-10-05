@@ -13,7 +13,7 @@ export function postMessage(channel, person, body, attachment) {
   const msg = getMessage(r.lastInsertRowid);
   broadcast('message', msg);
   pushAll({
-    title: `${channel.name} · ${person?.name ?? 'Dienstplan'}`,
+    title: `${channel.name} · ${person?.name ?? 'Pratomat'}`,
     body: body || (attachment ? `📎 ${attachment.original_name}` : ''),
     url: `/#/chat/${channel.id}`,
   }, person?.id ?? null).catch((err) => console.warn(err));

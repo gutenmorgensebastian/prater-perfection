@@ -35,7 +35,7 @@ export function maybeShowWelcome() {
   } catch { /* privater Modus */ }
   const role = { admin: 'Admin', member: 'Mitarbeiter*in', viewer: 'Gast' }[state.me.role];
   openModal(`
-    <h2>Willkommen, ${esc(state.me.name)}! 👋</h2>
+    <h2>Willkommen im Pratomat, ${esc(state.me.name)}! 👋</h2>
     <p>Du bist angemeldet (${role}). Ein Passwort brauchst du nicht.</p>
     <h3>Jetzt noch die Kachel aufs Handy legen</h3>
     ${installHelpHtml()}

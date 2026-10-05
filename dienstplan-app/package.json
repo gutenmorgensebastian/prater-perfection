@@ -1,7 +1,7 @@
 {
-  "name": "dienstplan-app",
+  "name": "pratomat",
   "version": "1.0.0",
-  "description": "Gemeinsamer Kalender, Chat und Dienstplan-Import für das Technik-Team",
+  "description": "Pratomat – Kalender, Dienstplan, Chat und mehr fürs Technik-Team im Prater",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

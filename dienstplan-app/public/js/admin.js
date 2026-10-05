@@ -380,7 +380,7 @@ async function loadPeople() {
         <td><input data-f="roster_name" value="${esc(p.roster_name || '')}"></td>
         <td><select data-f="role" ${p.id === state.me.id ? 'disabled' : ''}>${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === p.role ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
         <td style="white-space:nowrap">${p.invite_link ? `<button data-act="copy" data-link="${esc(p.invite_link)}" title="Link kopieren">🔗</button>
-          <a class="btn" href="https://wa.me/?text=${encodeURIComponent(`Hallo ${p.name}, hier ist dein Zugang zum Dienstplan & Chat (bitte nicht weitergeben): ${p.invite_link}`)}" target="_blank" title="Per WhatsApp schicken">📲</a>
+          <a class="btn" href="https://wa.me/?text=${encodeURIComponent(`Hallo ${p.name}, hier ist dein Zugang zum Pratomat – Dienstplan, Chat & mehr (bitte nicht weitergeben): ${p.invite_link}`)}" target="_blank" title="Per WhatsApp schicken">📲</a>
           <button data-act="renew" title="Neuen Link erzeugen (alter wird ungültig)">♻️</button>` : '<span class="muted small">kein Zugang</span>'}</td>
         <td>${p.id === state.me.id ? '' : '<button class="danger" data-act="del" title="Person löschen">🗑</button>'}</td>
       </tr>`).join('');

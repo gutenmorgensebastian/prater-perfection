@@ -108,7 +108,7 @@ app.get('/cal/:feed.ics', (req, res) => {
     || (e.kind === 'venue' && req.query.v === '1')
     || (e.kind === 'custom' && (e.calendar_id ? cals.includes(e.calendar_id) : req.query.c === '1')));
   const names = db.prepare('SELECT id, name FROM people').all().filter((p) => ids.includes(p.id)).map((p) => p.name);
-  const calName = `Dienstplan${names.length ? ` – ${names.length > 3 ? `${names.length} Personen` : names.join(', ')}` : ''}`;
+  const calName = `Pratomat${names.length ? ` – ${names.length > 3 ? `${names.length} Personen` : names.join(', ')}` : ''}`;
   res.type('text/calendar; charset=utf-8');
   res.set('Cache-Control', 'no-cache');
   res.send(buildIcs(rows, { name: calName, host: req.hostname }));
@@ -411,7 +411,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 const admin0 = bootstrap();
 startMailPolling();
 app.listen(PORT, () => {
-  console.log(`Dienstplan-App läuft auf http://localhost:${PORT}`);
+  console.log(`Pratomat läuft auf http://localhost:${PORT}`);
   if (admin0) {
     console.log(`\nErster Start – dein Admin-Link (geheim halten!):\n  ${(process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '')}/join/${admin0.token}\n`);
   }

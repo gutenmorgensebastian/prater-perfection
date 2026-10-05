@@ -28,10 +28,10 @@ const dateValue = (iso) => iso.slice(0, 10).replace(/-/g, '');
 const dateTimeValue = (iso) => `${dateValue(iso)}T${iso.slice(11, 13)}${iso.slice(14, 16)}00`;
 
 // events: Zeilen aus der Tabelle "events", jeweils mit person_name (oder null)
-export function buildIcs(events, { name = 'Dienstplan', host = 'dienstplan' } = {}) {
+export function buildIcs(events, { name = 'Pratomat', host = 'pratomat' } = {}) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Dienstplan-App//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Pratomat//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeText(name)}`, 'X-WR-TIMEZONE:Europe/Berlin',
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
     ...VTIMEZONE,

@@ -1,7 +1,7 @@
 {
-  "name": "Dienstplan Technik",
-  "short_name": "Dienstplan",
-  "description": "Gemeinsamer Kalender, Dienstplan und Chat",
+  "name": "Pratomat",
+  "short_name": "Pratomat",
+  "description": "Kalender, Dienstplan, Chat und mehr fürs Prater-Team",
   "lang": "de",
   "start_url": "/#/kalender",
   "scope": "/",

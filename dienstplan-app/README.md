@@ -1,4 +1,6 @@
-# Dienstplan-App (Kalender · Chat · To-Dos · Fragen · Infos · Bestellen)
+# Pratomat
+
+Kalender · Dienstplan · Chat · To-Dos · Fragen · Infos · Bestellen – fürs Technik-Team im Prater.
 
 Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (Android und iPhone).
 

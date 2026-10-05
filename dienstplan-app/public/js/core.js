@@ -55,7 +55,7 @@ export const isAdmin = () => state.me?.role === 'admin';
 
 export function setTitle(text, actionsHtml = '') {
   $('#page-title').textContent = text;
-  document.title = `${text} · Dienstplan`;
+  document.title = `${text} · Pratomat`;
   $('#topbar-actions').innerHTML = actionsHtml;
 }
 

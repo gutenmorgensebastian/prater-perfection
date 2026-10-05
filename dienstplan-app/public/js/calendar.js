@@ -1,4 +1,4 @@
-import { state, api, esc, $, $$, openModal, personById, canWrite, isAdmin, setTitle, showError, toast, copyText, loadPref, savePref, fmtDate, showUndo } from './core.js';
+import { state, api, esc, $, $$, openModal, personById, canWrite, isAdmin, setTitle, showError, toast, copyText, loadPref, savePref, fmtDate, deleteWithUndo } from './core.js';
 
 let calendar = null;
 const VENUE_COLOR = '#64748b';
@@ -148,8 +148,8 @@ function openManageCalendars() {
     };
     $('#cal-list', dlg).onclick = async (e) => {
       const li = e.target.closest('[data-del]')?.closest('li');
-      if (!li || !confirm('Kalender mit allen Terminen darin löschen?')) return;
-      try { await api(`/admin/calendars/${li.dataset.id}`, { method: 'DELETE' }); await reload(); } catch (err) { showError(err); }
+      if (!li) return;
+      try { await deleteWithUndo(`/admin/calendars/${li.dataset.id}`, async () => { await reload(); refreshCalendar(); }); } catch (err) { showError(err); }
     };
   });
 }
@@ -182,15 +182,7 @@ function openEventDetails(e) {
     $('#ev-edit', dlg)?.addEventListener('click', () => openEventForm({ event: e }));
     $('#ev-del', dlg)?.addEventListener('click', async () => {
       try {
-        await api(`/events/${e.id}`, { method: 'DELETE' });
-        dlg.close();
-        refreshCalendar();
-        // 5 Sekunden lang rückgängig machen
-        showUndo(async () => {
-          await api(`/events/${e.id}/restore`, { method: 'POST' });
-          refreshCalendar();
-          toast('Wiederhergestellt');
-        });
+        await deleteWithUndo(`/events/${e.id}`, refreshCalendar, () => { dlg.close(); refreshCalendar(); });
       } catch (err) { showError(err); }
     });
   });

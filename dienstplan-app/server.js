@@ -9,6 +9,7 @@ import { claudeAvailable } from './src/pdf-claude.js';
 import { createDraft, publishDraft, getRoster, typeOf, suggestAssignments } from './src/imports.js';
 import { MESSAGE_SQL, getMessage, postMessage } from './src/messages.js';
 import { mailStatus, saveMailSettings, checkMailbox, startMailPolling } from './src/mailin.js';
+import { snapshot, restore, personSpecs } from './src/undo.js';
 import { buildIcs } from './src/ics.js';
 import { liveStream, broadcast, saveSubscription, removeSubscription, vapidPublicKey } from './src/notify.js';
 
@@ -192,32 +193,31 @@ api.patch('/events/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(ev.id));
 });
 
-// Gelöschte Einträge kurz merken, damit „Rückgängig“ sie unverändert zurückholen kann.
-const UNDO_MS = 30_000;
-const recentlyDeleted = new Map();
-
 api.delete('/events/:id', (req, res) => {
   const ev = editableEvent(req);
+  const undo = snapshot(req.person.id, [{ table: 'events', where: 'id = ?', params: [ev.id] }]);
   db.prepare('DELETE FROM events WHERE id = ?').run(ev.id);
-  recentlyDeleted.set(ev.id, { row: ev, by: req.person.id });
-  setTimeout(() => recentlyDeleted.delete(ev.id), UNDO_MS).unref();
   broadcast('events');
-  res.json({ ok: true, undo: true });
+  res.json({ ok: true, undo });
 });
 
-api.post('/events/:id/restore', (req, res) => {
-  const entry = recentlyDeleted.get(intParam(req.params.id));
-  if (!entry || entry.by !== req.person.id) throw new HttpError(410, 'Zu spät – der Eintrag lässt sich nicht mehr wiederherstellen.');
-  const e = entry.row;
-  try {
-    db.prepare(`INSERT INTO events (id, kind, person_id, roster_id, calendar_id, title, location, notes, start, end, all_day, created_by, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(e.id, e.kind, e.person_id, e.roster_id, e.calendar_id, e.title, e.location, e.notes, e.start, e.end, e.all_day, e.created_by, e.updated_at);
-  } catch {
-    throw new HttpError(409, 'Der Eintrag lässt sich nicht wiederherstellen (Plan oder Person gibt es nicht mehr).');
-  }
-  recentlyDeleted.delete(e.id);
-  broadcast('events');
+// „Rückgängig“ nach einer Löschung (siehe src/undo.js)
+api.post('/undo/:token', (req, res) => {
+  let parts;
+  try { parts = restore(String(req.params.token), req.person.id); } catch { throw new HttpError(409, 'Das lässt sich leider nicht mehr wiederherstellen.'); }
+  if (!parts) throw new HttpError(410, 'Zu spät – das lässt sich nicht mehr wiederherstellen.');
+  const tables = new Set(parts.filter((p) => !p.column).map((p) => p.table));
+  const kinds = new Set(parts.filter((p) => p.table === 'item_attachments').flatMap((p) => p.rows.map((r) => r.kind)));
+  if (tables.has('people')) broadcast('people');
+  if (tables.has('channels')) broadcast('channels');
+  if (tables.has('calendars')) broadcast('calendars');
+  if (tables.has('events')) broadcast('events');
+  if (tables.has('messages') || tables.has('channels')) broadcast('message-updated', {});
+  if (tables.has('todos') || tables.has('todo_assignees') || tables.has('todo_tags') || kinds.has('todo')) broadcast('todos');
+  if (tables.has('infos') || kinds.has('info')) broadcast('infos');
+  if (tables.has('orders') || kinds.has('order')) broadcast('orders');
+  const qs = parts.filter((p) => p.table === 'questions').flatMap((p) => p.rows);
+  if (qs.length) broadcast('questions', { people: [...new Set(qs.flatMap((q) => [q.from_id, q.to_id]))] });
   res.json({ ok: true });
 });
 
@@ -257,9 +257,10 @@ api.delete('/messages/:id', (req, res) => {
   const msg = getMessage(intParam(req.params.id));
   if (!msg) throw new HttpError(404, 'Nachricht nicht gefunden');
   if (msg.person_id !== req.person.id && req.person.role !== 'admin') throw new HttpError(403, 'Nur eigene Nachrichten löschen');
+  const undo = snapshot(req.person.id, [{ table: 'messages', where: 'id = ?', params: [msg.id] }]);
   db.prepare('DELETE FROM messages WHERE id = ?').run(msg.id);
   broadcast('message-deleted', { id: msg.id, channel_id: msg.channel_id });
-  res.json({ ok: true });
+  res.json({ ok: true, undo });
 });
 
 // Ablage einer Gruppe: angepinnte Nachrichten, Dateien und Links
@@ -329,10 +330,11 @@ admin.post('/people/:id/new-link', (req, res) => {
 admin.delete('/people/:id', (req, res) => {
   const id = intParam(req.params.id);
   if (id === req.person.id) throw new HttpError(400, 'Du kannst dich nicht selbst löschen');
+  const undo = snapshot(req.person.id, personSpecs(id));
   db.prepare('DELETE FROM people WHERE id = ?').run(id);
   broadcast('people');
   broadcast('events');
-  res.json({ ok: true });
+  res.json({ ok: true, undo });
 });
 
 // Eigene Kalender: anlegen, umbenennen, Farbe, löschen (nur Admins). Eintragen dürfen alle außer Gästen.
@@ -358,11 +360,15 @@ admin.patch('/calendars/:id', (req, res) => {
 
 admin.delete('/calendars/:id', (req, res) => {
   const id = intParam(req.params.id);
+  const undo = snapshot(req.person.id, [
+    { table: 'calendars', where: 'id = ?', params: [id] },
+    { table: 'events', where: 'calendar_id = ?', params: [id] },
+  ]);
   db.prepare('DELETE FROM events WHERE calendar_id = ?').run(id);
   db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
   broadcast('calendars');
   broadcast('events');
-  res.json({ ok: true });
+  res.json({ ok: true, undo });
 });
 
 admin.post('/channels', (req, res) => {
@@ -386,9 +392,13 @@ admin.patch('/channels/:id', (req, res) => {
 admin.delete('/channels/:id', (req, res) => {
   const ch = getChannel(req.params.id);
   if (db.prepare('SELECT count(*) AS n FROM channels').get().n <= 1) throw new HttpError(400, 'Die letzte Gruppe kann nicht gelöscht werden');
+  const undo = snapshot(req.person.id, [
+    { table: 'channels', where: 'id = ?', params: [ch.id] },
+    { table: 'messages', where: 'channel_id = ?', params: [ch.id] },
+  ]);
   db.prepare('DELETE FROM channels WHERE id = ?').run(ch.id);
   broadcast('channels');
-  res.json({ ok: true });
+  res.json({ ok: true, undo });
 });
 
 // --- PDF-Import: Dienstplan, Spielplan, Probenplan (Art wird erkannt) ---

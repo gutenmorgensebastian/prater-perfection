@@ -1,4 +1,4 @@
-import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, openModal, fmtDateTime } from './core.js';
+import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, openModal, fmtDateTime, deleteWithUndo } from './core.js';
 import { avatar } from './files.js';
 
 let mounted = false;
@@ -98,9 +98,7 @@ async function onAction(e) {
       await api(`/questions/${id}`, { method: 'PATCH', body: { status: e.target.dataset.status } });
       refreshQuestions();
     } else if (e.target.hasAttribute('data-del')) {
-      if (!confirm('Frage löschen?')) return;
-      await api(`/questions/${id}`, { method: 'DELETE' });
-      refreshQuestions();
+      await deleteWithUndo(`/questions/${id}`, refreshQuestions);
     }
   } catch (err) { showError(err); }
 }

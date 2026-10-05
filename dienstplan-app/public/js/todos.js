@@ -1,4 +1,4 @@
-import { state, api, esc, linkify, $, $$, setTitle, showError, toast, canWrite, isAdmin, openModal, personById, loadPref, savePref } from './core.js';
+import { state, api, esc, linkify, $, $$, setTitle, showError, toast, canWrite, isAdmin, openModal, personById, loadPref, savePref, deleteWithUndo } from './core.js';
 import { attachmentsHtml, bindAttachments, avatar } from './files.js';
 import { matchesTodo } from './todo-search.js';
 
@@ -211,7 +211,7 @@ function renderDetail(id) {
     if (untag) return patch({ tags: t.tags.filter((g) => g !== untag) });
     const del = e.target.closest('[data-sub-del]')?.dataset.subDel;
     if (del) {
-      try { await api(`/todos/${del}`, { method: 'DELETE' }); refreshTodos(); } catch (err) { showError(err); }
+      try { await deleteWithUndo(`/todos/${del}`, refreshTodos); } catch (err) { showError(err); }
     }
   };
   $('#td-subs', root).onchange = async (e) => {
@@ -226,8 +226,7 @@ function renderDetail(id) {
     try { await api('/todos', { method: 'POST', body: { title, parent_id: t.id } }); await refreshTodos(); $('#td-sub')?.focus(); } catch (err) { showError(err); }
   };
   $('#td-del', root)?.addEventListener('click', async () => {
-    if (!confirm('To-Do mit allen Unteraufgaben löschen?')) return;
-    try { await api(`/todos/${t.id}`, { method: 'DELETE' }); $('#modal').close(); toast('Gelöscht'); refreshTodos(); } catch (err) { showError(err); }
+    try { await deleteWithUndo(`/todos/${t.id}`, refreshTodos, () => { $('#modal').close(); refreshTodos(); }); } catch (err) { showError(err); }
   });
   bindAttachments($('#td-atts', root), 'todos', t.id, refreshTodos);
 }

@@ -1,4 +1,4 @@
-import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, isAdmin, fmtDateTime, fmtSize, loadPref, savePref } from './core.js';
+import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, isAdmin, fmtDateTime, fmtSize, loadPref, savePref, deleteWithUndo } from './core.js';
 import { shrinkImage } from './image.js';
 
 let current = null; // { channelId, tab }
@@ -146,9 +146,7 @@ async function onMessageAction(ev) {
   const id = el.dataset.id;
   try {
     if (btn.dataset.act === 'del') {
-      if (!confirm('Nachricht löschen?')) return;
-      await api(`/messages/${id}`, { method: 'DELETE' });
-      el.remove();
+      await deleteWithUndo(`/messages/${id}`, onMessageChanged, () => el.remove());
     } else {
       const pinned = !el.querySelector('.pin');
       const m = await api(`/messages/${id}`, { method: 'PATCH', body: { pinned } });

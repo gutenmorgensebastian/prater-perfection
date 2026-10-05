@@ -1,4 +1,4 @@
-import { state, api, esc, linkify, $, $$, setTitle, showError, toast, canWrite, isAdmin, openModal, personById, fmtDate, loadPref, savePref } from './core.js';
+import { state, api, esc, linkify, $, $$, setTitle, showError, toast, canWrite, isAdmin, openModal, personById, fmtDate, loadPref, savePref, deleteWithUndo } from './core.js';
 import { attachmentsHtml, bindAttachments } from './files.js';
 
 let mounted = false;
@@ -141,8 +141,7 @@ function renderEdit(id) {
     } catch (err) { showError(err); }
   };
   $('#info-del', root).onclick = async () => {
-    if (!confirm('Info löschen?')) return;
-    try { await api(`/infos/${i.id}`, { method: 'DELETE' }); $('#modal').close(); refreshInfos(); } catch (err) { showError(err); }
+    try { await deleteWithUndo(`/infos/${i.id}`, refreshInfos, () => { $('#modal').close(); refreshInfos(); }); } catch (err) { showError(err); }
   };
   bindAttachments($('#info-atts', root), 'infos', i.id, async () => {
     // Text nicht verlieren, wenn während des Bearbeitens eine Datei angehängt wird.

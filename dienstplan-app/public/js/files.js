@@ -1,5 +1,5 @@
 // Anhänge (Fotos, PDFs …) an To-Dos, Infos und Bestellwünschen.
-import { api, esc, showError, fmtSize } from './core.js';
+import { api, esc, showError, fmtSize, deleteWithUndo } from './core.js';
 import { shrinkImage } from './image.js';
 
 const icon = (mime) => (mime?.startsWith('image/') ? '🖼️' : mime === 'application/pdf' ? '📄' : '📎');
@@ -29,7 +29,7 @@ export function bindAttachments(root, table, itemId, onChange) {
   root.addEventListener('click', async (e) => {
     const id = e.target.closest('[data-att-del]')?.dataset.attDel;
     if (!id) return;
-    try { await api(`/${table}/${itemId}/attachments/${id}`, { method: 'DELETE' }); onChange(); } catch (err) { showError(err); }
+    try { await deleteWithUndo(`/${table}/${itemId}/attachments/${id}`, onChange); } catch (err) { showError(err); }
   });
 }
 

@@ -5,7 +5,7 @@ Kalender · Dienstplan · Chat · To-Dos · Fragen · Infos · Bestellen – fü
 Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (Android und iPhone).
 
 - **Gemeinsamer Kalender.** Wer einen Einladungslink bekommt, sieht den Kalender sofort, ohne Passwort und ohne App-Store.
-- **Löschen mit Rückgängig.** Nach dem Löschen eines Kalendereintrags erscheint 5 Sekunden lang ein ↺-Knopf. Antippen holt den Eintrag unverändert zurück.
+- **Löschen mit Rückgängig.** Gelöscht wird überall ohne Rückfrage, egal ob Termin, Kalender, Nachricht, Gruppe, To-Do, Unteraufgabe, Anhang, Frage, Info, Bestellwunsch oder Person. Danach erscheint 10 Sekunden lang ein ↺-Knopf. Antippen holt alles unverändert zurück, auch was mitgelöscht wurde (z. B. Unteraufgaben, Antworten, Termine im Kalender, Nachrichten in der Gruppe, Dienste und Zuordnungen einer Person). Rückgängig machen kann nur, wer gelöscht hat.
 - **Abo im Handykalender.** Der Kalender lässt sich in Google Kalender, Apple Kalender oder Outlook abonnieren. Jede Person wählt selbst, wessen Dienste dort erscheinen.
 - **Dienstplan-Import.** PDF hochladen, die Vorschau prüfen und veröffentlichen. Dann stehen alle Dienste automatisch im Kalender, jeweils der Person zugeordnet.
   - Im Kalender lässt sich jede Person einzeln ein- und ausblenden (farbige Chips), dazu Prater-Veranstaltungen und Frei-Tage.

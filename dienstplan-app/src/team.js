@@ -2,6 +2,7 @@
 import { db } from './db.js';
 import { HttpError, intParam, requireWriter, upload, saveAttachment } from './http.js';
 import { broadcast, pushTo, pushAll } from './notify.js';
+import { snapshot } from './undo.js';
 
 const NOW = "strftime('%Y-%m-%dT%H:%M:%SZ','now')";
 const text = (v, max) => String(v ?? '').trim().slice(0, max);
@@ -120,10 +121,17 @@ export function registerTeamRoutes(api) {
   api.delete('/todos/:id', requireWriter, (req, res) => {
     const t = getTodo(req.params.id);
     if (!t.parent_id && t.created_by !== req.person.id && !isAdmin(req)) throw new HttpError(403, 'Nur wer das To-Do angelegt hat (oder ein Admin) kann es löschen');
+    const undo = snapshot(req.person.id, [
+      { table: 'todos', where: 'id = ?', params: [t.id] },
+      { table: 'todos', where: 'parent_id = ?', params: [t.id] },
+      { table: 'todo_assignees', where: 'todo_id = ?', params: [t.id] },
+      { table: 'todo_tags', where: 'todo_id = ?', params: [t.id] },
+      { table: 'item_attachments', where: "kind = 'todo' AND item_id = ?", params: [t.id] },
+    ]);
     db.prepare("DELETE FROM item_attachments WHERE kind = 'todo' AND item_id = ?").run(t.id);
     db.prepare('DELETE FROM todos WHERE id = ?').run(t.id);
     broadcast('todos');
-    res.json({ ok: true });
+    res.json({ ok: true, undo });
   });
 
   api.post('/todos/reorder', requireWriter, (req, res) => {
@@ -147,9 +155,12 @@ export function registerTeamRoutes(api) {
       res.json({ id: a.id, name: a.original_name, mime: a.mime, size: a.size });
     });
     api.delete(`/${table}/:id/attachments/:aid`, requireWriter, (req, res) => {
-      db.prepare('DELETE FROM item_attachments WHERE kind = ? AND item_id = ? AND attachment_id = ?').run(kind, exists(req.params.id), intParam(req.params.aid));
+      const where = 'kind = ? AND item_id = ? AND attachment_id = ?';
+      const params = [kind, exists(req.params.id), intParam(req.params.aid)];
+      const undo = snapshot(req.person.id, [{ table: 'item_attachments', where, params }]);
+      db.prepare(`DELETE FROM item_attachments WHERE ${where}`).run(...params);
       broadcast(table);
-      res.json({ ok: true });
+      res.json({ ok: true, undo });
     });
   }
 
@@ -220,9 +231,13 @@ export function registerTeamRoutes(api) {
   api.delete('/questions/:id', requireWriter, (req, res) => {
     const q = getQuestion(req);
     if (q.from_id !== req.person.id) throw new HttpError(403, 'Nur wer gefragt hat, kann die Frage löschen');
+    const undo = snapshot(req.person.id, [
+      { table: 'questions', where: 'id = ?', params: [q.id] },
+      { table: 'question_replies', where: 'question_id = ?', params: [q.id] },
+    ]);
     db.prepare('DELETE FROM questions WHERE id = ?').run(q.id);
     questionsChanged(q);
-    res.json({ ok: true });
+    res.json({ ok: true, undo });
   });
 
   // --- Infos -----------------------------------------------------------------------
@@ -268,10 +283,14 @@ export function registerTeamRoutes(api) {
 
   api.delete('/infos/:id', requireWriter, (req, res) => {
     const i = editableInfo(req);
+    const undo = snapshot(req.person.id, [
+      { table: 'infos', where: 'id = ?', params: [i.id] },
+      { table: 'item_attachments', where: "kind = 'info' AND item_id = ?", params: [i.id] },
+    ]);
     db.prepare("DELETE FROM item_attachments WHERE kind = 'info' AND item_id = ?").run(i.id);
     db.prepare('DELETE FROM infos WHERE id = ?').run(i.id);
     broadcast('infos');
-    res.json({ ok: true });
+    res.json({ ok: true, undo });
   });
 
   api.post('/infos/reorder', requireWriter, (req, res) => {
@@ -334,9 +353,13 @@ export function registerTeamRoutes(api) {
   api.delete('/orders/:id', requireWriter, (req, res) => {
     const o = getOrder(req.params.id);
     if (o.created_by !== req.person.id && !isAdmin(req)) throw new HttpError(403, 'Nur wer den Wunsch eingetragen hat (oder ein Admin) kann ihn löschen');
+    const undo = snapshot(req.person.id, [
+      { table: 'orders', where: 'id = ?', params: [o.id] },
+      { table: 'item_attachments', where: "kind = 'order' AND item_id = ?", params: [o.id] },
+    ]);
     db.prepare("DELETE FROM item_attachments WHERE kind = 'order' AND item_id = ?").run(o.id);
     db.prepare('DELETE FROM orders WHERE id = ?').run(o.id);
     broadcast('orders');
-    res.json({ ok: true });
+    res.json({ ok: true, undo });
   });
 }

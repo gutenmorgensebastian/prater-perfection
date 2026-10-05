@@ -1,4 +1,4 @@
-import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, isAdmin, openModal, fmtDateTime, loadPref, savePref } from './core.js';
+import { state, api, esc, linkify, $, setTitle, showError, toast, canWrite, isAdmin, openModal, fmtDateTime, loadPref, savePref, deleteWithUndo } from './core.js';
 import { attachmentsHtml, bindAttachments, avatar } from './files.js';
 
 let mounted = false;
@@ -136,8 +136,7 @@ function renderEdit(id) {
     } catch (err) { showError(err); }
   };
   $('#o-del', root)?.addEventListener('click', async () => {
-    if (!confirm('Bestellwunsch löschen?')) return;
-    try { await api(`/orders/${o.id}`, { method: 'DELETE' }); $('#modal').close(); refreshOrders(); } catch (err) { showError(err); }
+    try { await deleteWithUndo(`/orders/${o.id}`, refreshOrders, () => { $('#modal').close(); refreshOrders(); }); } catch (err) { showError(err); }
   });
   if (canWrite()) bindAttachments($('#o-atts', root), 'orders', o.id, refreshOrders);
 }

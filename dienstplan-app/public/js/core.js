@@ -83,7 +83,7 @@ export function savePref(key, value) {
 
 // Kleiner Knopf zum Rückgängigmachen (Pfeil dreht sich gegen den Uhrzeigersinn, Ring zeigt die Restzeit).
 let undoTimer = null;
-export function showUndo(onUndo, ms = 5000) {
+export function showUndo(onUndo, ms = 10000) {
   document.querySelector('.undo-btn')?.remove();
   clearTimeout(undoTimer);
   const btn = document.createElement('button');
@@ -103,4 +103,17 @@ export function showUndo(onUndo, ms = 5000) {
   };
   document.body.append(btn);
   undoTimer = setTimeout(close, ms);
+}
+
+// Löscht ohne Rückfrage und bietet danach 10 Sekunden lang „Rückgängig“ an.
+// afterDelete: was direkt nach dem Löschen passieren soll (Standard: refresh).
+export async function deleteWithUndo(path, refresh, afterDelete = refresh) {
+  const res = await api(path, { method: 'DELETE' });
+  await afterDelete?.();
+  if (!res.undo) return;
+  showUndo(async () => {
+    await api(`/undo/${res.undo}`, { method: 'POST' });
+    await refresh?.();
+    toast('Wiederhergestellt');
+  });
 }

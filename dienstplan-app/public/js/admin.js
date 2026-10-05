@@ -1,4 +1,4 @@
-import { state, api, esc, $, setTitle, showError, toast, copyText, fmtDate, openModal } from './core.js';
+import { state, api, esc, $, setTitle, showError, toast, copyText, fmtDate, openModal, deleteWithUndo } from './core.js';
 import { parsePersonCell, venueEntries, addDays } from '/shared/roster.js';
 
 export function renderAdmin(view) {
@@ -406,10 +406,7 @@ async function loadPeople() {
           loadPeople();
           openModal(`<h2>Neuer Link für ${esc(p.name)}</h2><code class="url">${esc(p.invite_link)}</code><div class="buttons"><button data-close>OK</button></div>`);
         }
-        if (btn.dataset.act === 'del' && confirm('Person mit allen Diensten löschen?')) {
-          await api(`/admin/people/${id}`, { method: 'DELETE' });
-          loadPeople();
-        }
+        if (btn.dataset.act === 'del') await deleteWithUndo(`/admin/people/${id}`, loadPeople);
       } catch (err) { showError(err); }
     };
   } catch (err) { showError(err); }
@@ -427,8 +424,7 @@ export function renderChannels() {
   };
   el.onclick = async (e) => {
     if (!e.target.matches('[data-del]')) return;
-    if (!confirm('Gruppe mit allen Nachrichten löschen?')) return;
-    try { await api(`/admin/channels/${e.target.closest('li').dataset.id}`, { method: 'DELETE' }); } catch (err) { showError(err); }
+    try { await deleteWithUndo(`/admin/channels/${e.target.closest('li').dataset.id}`); } catch (err) { showError(err); }
   };
 }
 

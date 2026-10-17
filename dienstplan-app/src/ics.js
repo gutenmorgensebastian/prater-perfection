@@ -15,7 +15,7 @@ function fold(line) {
   let cur = '';
   let bytes = 0;
   for (const ch of line) {
-    const b = Buffer.byteLength(ch);
+    const b = new TextEncoder().encode(ch).length; // Bytes (läuft auch im Browser)
     if (bytes + b > (out.length ? 74 : 75)) { out.push(cur); cur = ''; bytes = 0; }
     cur += ch;
     bytes += b;

@@ -51,6 +51,18 @@ Eine Website fürs Technik-Team, die sich wie eine App aufs Handy legen lässt (
   - Mit „🙋 Ich kümmere mich“ übernimmt jemand den Wunsch, danach folgen „Bestellt“ und „Erledigt / ist da“.
 - **Benachrichtigungen** bei neuen Nachrichten, neuen Dienstplänen, To-Dos für dich, Fragen und Antworten an dich und Ansagen. Auf dem iPhone geht das nur, wenn die Seite zum Home-Bildschirm hinzugefügt wurde.
 
+## Pratomat Lite: eine einzelne HTML-Datei
+
+Für den Einstieg ohne Server gibt es eine abgespeckte Version als **eine HTML-Datei** (ca. 2 MB, läuft ohne Internet).
+Sie enthält Kalender, Einlesen von Dienst-, Spiel- und Probenplänen, To-Dos, Infos, Produktionen und Bestellwünsche.
+Chat und „Fragen an“ fehlen, weil sie allein keinen Sinn ergeben.
+
+- Bauen: `npm install`, dann `npm run build:lite`. Ergebnis: `lite/dist/pratomat-lite.html`.
+- Alle Daten liegen **nur auf dem Gerät** im Browser (IndexedDB). Unter „Mehr → Daten sichern“ gibt es Sicherung und Wiederherstellung.
+- Kalender: statt Abo gibt es eine **.ics-Datei** zum Importieren in Apple- oder Google-Kalender (Momentaufnahme, nicht live).
+- Nicht dabei: Bild-Texterkennung (nur PDFs mit Textebene), E-Mail-Eingang, Push, mehrere Nutzer.
+- `lite/mock.js` ersetzt den Server im Browser und ist aus der Demo abgeleitet. Ändert sich die API in `server.js`, muss sie dort nachgezogen werden.
+
 ## Dienstplan-Erkennung
 
 Es gibt drei Wege, das PDF einzulesen. Vor dem Veröffentlichen kommt bei allen eine Vorschau, in der du jede Zelle korrigieren kannst. Ungewöhnliche Dienste (länger als 12 Stunden oder Beginn vor 6 Uhr) werden dort als Warnung angezeigt, weil sie meist Lesefehler sind.

@@ -76,6 +76,26 @@ pruneObserver.observe(document.body, { childList: true, subtree: true });
 addEventListener('hashchange', () => setTimeout(prune, 50));
 prune();
 
+// --- Hochladen: Meldung statt stillem Nichts, wenn kein PDF angekommen ist ---------------------
+// Manche Viewer-Apps (eingebettete Browser) reichen die gewählte Datei nicht durch. Dann blockiert das
+// Pflichtfeld das Absenden stumm. Hier gibt es stattdessen eine sichtbare Meldung.
+// Pflichtfeld abschalten (die Browser-Meldung dazu fehlt in Viewer-Apps) und selbst prüfen.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest?.('#import-upload [type=submit]');
+  if (!btn) return;
+  const input = btn.form.querySelector('input[type=file]');
+  input.required = false;
+  if (!input.files?.length) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    toast('⚠️ Es ist noch kein PDF ausgewählt. Wenn das Auswählen nichts bewirkt, blockiert diese App die Dateiauswahl – bitte die Datei in Safari/Chrome öffnen.');
+  }
+}, true);
+document.addEventListener('change', (e) => {
+  if (e.target.matches?.('#import-upload input[type=file]') && e.target.files?.[0]) toast(`📄 ${e.target.files[0].name} ausgewählt – jetzt „Hochladen“`);
+});
+addEventListener('unhandledrejection', (e) => toast(`⚠️ ${e.reason?.message || e.reason}`));
+addEventListener('error', (e) => toast(`⚠️ ${e.message}`));
+
 // --- Klicks -----------------------------------------------------------------------------------
 document.addEventListener('click', async (e) => {
   const t = e.target;

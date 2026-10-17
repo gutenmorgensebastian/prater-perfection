@@ -5,5 +5,13 @@ import * as lib from 'pdfjs-dist/legacy/build/pdf.mjs';
 const el = document.getElementById('pdf-worker');
 if (el) lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([el.textContent], { type: 'text/javascript' }));
 
-export const getDocument = lib.getDocument;
+// Startet der PDF-Worker in einem Browser nicht, würde das Lesen ewig hängen. Dann lieber eine Meldung.
+export function getDocument(params) {
+  const task = lib.getDocument(params);
+  const promise = Promise.race([
+    task.promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Das PDF lässt sich in diesem Browser nicht lesen (PDF-Verarbeitung startet nicht). Bitte in Safari oder Chrome öffnen.')), 25_000)),
+  ]);
+  return { promise, destroy: () => task.destroy() };
+}
 export const getPdfjs = async () => lib;
